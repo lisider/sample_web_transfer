@@ -12,7 +12,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define FIFO_PATH "/tmp/fifo1"
+#define FIFO_PATH "/tmp/fifo2"
 
 
 struct shm *shms;//结构体指针定义 
@@ -94,12 +94,11 @@ void fun_main(void){
 		//printf("shm state : %s\n", shms->shm_state == 0 ?("WRITEABLE"):(shms->shm_state == 1?("READABLE"):("NUMBER_OF_MEMBERS")));
 		if(shms->shm_state == READABLE){
 
+
 #if 0
-
-			sem_wait(&(shms->sem)); //这里会出问题
+			sem_wait(&(shms->sem));
+	
 #else
-
-
 loop:
 			if (sem_trywait(&(shms->sem)) == -1){
 				
@@ -108,6 +107,8 @@ loop:
 				goto loop;
 			}
 #endif
+
+
 
 			//接下来要判断是不是自己的数据  ver2
 			printf(YELLOW "del with buff_to_recv form ws_client\n" NONE);

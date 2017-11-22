@@ -14,14 +14,23 @@ CHEADERS = $(wildcard *.h)
 OBJ = $(COBJS)
 OBJ += $(CPPOBJS)
 
-all: $(OBJ)
+all: ws_client process1 process2
 
-%:%.c $(CHEADERS)
+%.o:%.c 
+	$(CC) -c $^ -o $@  -g
+
+%.o:%.cpp 
+	$(CPP) -c  $^ -o $@ -g
+
+ws_client : ws_client.o linklist.o
 	$(CC) $^ -o $@ $(CFLAGS)
 
-%:%.cpp $(CHEADERS)
-	$(CPP) $^ -o $@ $(CFLAGS)
+process1 : process1.o
+	$(CC) $^ -o $@ $(CFLAGS)
 
+process2 : process2.o
+	$(CC) $^ -o $@ $(CFLAGS)
+	
 
 
 clean:
