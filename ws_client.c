@@ -19,8 +19,9 @@
 pthread_t   pthid_write;
 
 struct shm *shms;//结构体指针定义 
+int shmid;//共享内存id定义
 
-linked_list_t * list_pointer = NULL;
+linked_list_t * list_h_pointer = NULL;
 
 
 void sig_handler(int arg){
@@ -31,11 +32,14 @@ void sig_handler(int arg){
 
 			printf(RED "Recovering memory...");
 
-			delete_linklist_all(list_pointer);
+			delete_linklist_all(list_h_pointer);
 
 			printf("\tDONE\n" NONE);
 
 			//做一些其他的回收的事情
+
+			shmdt(shms);
+			shmctl(shmid, IPC_RMID, NULL);
 			exit(23); //这个23需要定义
 			
 			break;
@@ -84,13 +88,54 @@ void thread_main (void){ //这个线程处理 写入 buff_to_recv
 
 
 static void * thread_del_list(void *arg){
+	int fifo_fd = -1;
+	char buf[32];
 	signal(SIGINT,sig_handler);
 
+	//等待 LWS_CALLBACK_CLIENT_ESTABLISHED
 	while(1){
 
-		sleep(3);
+		usleep(1000*200);
 
-//		print_sequence_linkedlist(list_pointer);
+		print_sequence_linkedlist(list_h_pointer);
+			
+		if(list_h_pointer->next == NULL)
+			continue;
+
+
+		//1.找到第一个,发出去
+		// list_h_pointer->next->data.context  //lws_write
+		
+		
+		// 2. 2.R
+		printf(GREEN "send the first node\n");
+
+		// 1.打开
+		fifo_fd = open(list_h_pointer->next->data.fifo_path,O_RDWR);
+		if(0 > fifo_fd){
+			perror("open");
+		}
+
+		bzero(buf,sizeof(buf));
+
+		snprintf(buf,sizeof(buf),"%d",list_h_pointer->next->data.key[0]); //KEY_0 是 用于 验证 2.R的
+
+
+		// 2. 写
+		printf(RED "send ack 2.R :%s to pid :%d",buf,list_h_pointer->next->data.pid);
+		write(fifo_fd,buf,sizeof(buf));
+		printf("   ...send ack 2.R DONE\n" NONE);
+
+		// 3.关闭
+		close(fifo_fd);
+
+		// 3. 得到ack
+
+		// 4. 3.R
+		// 5. 得到消息
+		// 6. 4.R
+		
+		del_front_linkedlist(list_h_pointer,NULL);
 
 		printf(GREEN "send buff_to_send form linklist to ws_server\n" NONE);
 		puts("\n");
@@ -121,8 +166,8 @@ static void * thread_insert(void *arg){
 			//数据的互斥
 			sem_wait(&(shms->sem));
 
-	//		printf(BLUE "msginfo :%s\n" NONE,shms->buff_to_send.msg_info.context);
-	//		printf(BLUE "node :%s\n" NONE,shms->buff_to_send.node.context);
+			//		printf(BLUE "msginfo :%s\n" NONE,shms->buff_to_send.msg_info.context);
+			//		printf(BLUE "node :%s\n" NONE,shms->buff_to_send.node.context);
 
 
 			//pthread_rwlock_wrlock(&(shms->lock));
@@ -133,8 +178,8 @@ static void * thread_insert(void *arg){
 
 			// 2. 插入
 			//insert the buff_to_send to linklist
-			add_rear_linkedlist(list_pointer,&(shms->buff_to_send.node),sizeof(node_t));
-			
+			add_rear_linkedlist(list_h_pointer,&(shms->buff_to_send.node),sizeof(node_t));
+
 
 			// 3. 插入后的事情
 			// 3.1  1.R
@@ -149,9 +194,9 @@ static void * thread_insert(void *arg){
 			//通知他, 让 客户端的程序最简化
 
 
-			printf(YELLOW " recv msg form pid : %d" NONE,shms->buff_to_send.msg_info.pid);
+			printf(YELLOW "recv msg form pid : %d" NONE,shms->buff_to_send.msg_info.pid);
 
-			
+
 			//printf("%s\n",shms->buff_to_send.msg_info.fifo_path);
 
 
@@ -161,13 +206,13 @@ static void * thread_insert(void *arg){
 				perror("open");
 			}
 
-			snprintf(buf,sizeof(buf),"%d",shms->buff_to_send.msg_info.msg_key);
+			snprintf(buf,sizeof(buf),"%d",shms->buff_to_send.msg_info.key_1R);
 
 
 			// 2. 写
 			printf(RED "send ack 1.R:%s",buf);
 			write(fifo_fd,buf,sizeof(buf));
-			printf("   ...DONE\n" NONE);
+			printf("   ...send ack 1.R DONE\n" NONE);
 
 			// 3.关闭
 			close(fifo_fd);
@@ -190,11 +235,22 @@ static void * thread_insert(void *arg){
 static int shm_init(void){
 
 	key_t key;//key定义
-	int shmid;//共享内存id定义
+
+	 int access(const char *filename, int mode);
+	 if(access(SHM_PATH,F_OK) != 0)
+
+	 {
+		 printf("mkdir SHM_PATH\n");
+		 system("mkdir " SHM_PATH);
+	 }
+		 
+
+
 
 	key = ftok(SHM_PATH,'r');//获取key
 	if(-1 == key){
 		perror("ftok");
+		printf(YELLOW "you can try to solve it by mkdir %s\n" NONE,SHM_PATH);
 		return -1; 
 	}   
 	shmid = shmget(key,sizeof(struct shm),IPC_CREAT|IPC_EXCL|0666);//共享内存的获取
@@ -221,6 +277,28 @@ static int shm_init(void){
 	return 0;
 }
 
+#if 0
+
+static int
+callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
+		                        void *user, void *in, size_t len)
+{
+
+	//到达 读状态
+	
+//	1. 查询 是 4.R 还是 3.R
+
+	//如果是 4.R 是谁的 4.R
+	//发送给 它
+	
+	//如果是 3.R 是谁的 3.R
+	//发送给 它
+	
+
+
+	return 0;
+}
+#endif
 
 int main(int argc, const char *argv[])
 {
@@ -229,7 +307,7 @@ int main(int argc, const char *argv[])
 	if(ret)
 		printf(RED "shm_init failed\n" NONE);
 
-	list_pointer = create_linkedlist();
+	list_h_pointer = create_linkedlist();
 
 	if(0 != pthread_create(&pthid_write,NULL,thread_insert,NULL)){
 		perror("pthid1");
@@ -240,9 +318,6 @@ int main(int argc, const char *argv[])
 		perror("pthid1");
 		return -1;
 	}
-
-
-
 
 	thread_main();
 	return 0;

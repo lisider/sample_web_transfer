@@ -21,7 +21,7 @@ typedef struct {
 
 	char fifo_path[32];
 
-	int msg_key;
+	int key_1R; 
 
 	pid_t pid;
 
@@ -42,6 +42,8 @@ typedef struct {
 
 /*
 typedef struct {
+	char * tmp;
+	pid_t  pid;
 	char context [30];
 } node_t;
 

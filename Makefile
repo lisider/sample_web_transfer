@@ -14,7 +14,7 @@ CHEADERS = $(wildcard *.h)
 OBJ = $(COBJS)
 OBJ += $(CPPOBJS)
 
-all: ws_client process1 process2
+all: ws_client process
 
 %.o:%.c 
 	$(CC) -c $^ -o $@  -g
@@ -25,12 +25,9 @@ all: ws_client process1 process2
 ws_client : ws_client.o linklist.o
 	$(CC) $^ -o $@ $(CFLAGS)
 
-process1 : process1.o
+process : process.o
 	$(CC) $^ -o $@ $(CFLAGS)
 
-process2 : process2.o
-	$(CC) $^ -o $@ $(CFLAGS)
-	
 
 
 clean:

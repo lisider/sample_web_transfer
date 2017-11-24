@@ -105,7 +105,8 @@ node_t * del_front_linkedlist(linked_list_t * list_pointer,node_t * data_pointer
 	tmp_pointer_free = list_pointer->next;
 
 	//得到第一个节点的数据
-	*data_pointer = list_pointer->next->data;
+	if(data_pointer != NULL)
+		*data_pointer = list_pointer->next->data;
 	list_pointer->next = list_pointer->next->next;
 	//释放节点
 	free(tmp_pointer_free);
@@ -129,7 +130,8 @@ node_t * del_rear_linkedlist(linked_list_t * list_pointer,node_t * data_pointer)
 
 	tmp_pointer_free = tmp_pointer->next;
 
-	*data_pointer = tmp_pointer->next->data;
+	if(data_pointer != NULL)
+		*data_pointer = tmp_pointer->next->data;
 	tmp_pointer->next = tmp_pointer->next->next;
 
 	free(tmp_pointer_free);
@@ -221,11 +223,11 @@ int print_sequence_linkedlist(linked_list_t * list_pointer)
 	do
 	{
 		//printf("%d\t",tmp_pointer->next->data);
-		printf("%s\t",tmp_pointer->next->data.context);
+	//	printf("%s\t",tmp_pointer->next->data.context);
 		count ++;
 		tmp_pointer = tmp_pointer->next;
 	}while(tmp_pointer->next != NULL);
-	putchar('\n');
+//	putchar('\n');
 	printf(PURPLE "%d nodes in the linklist\n" NONE,count);
 	return 0;
 }
