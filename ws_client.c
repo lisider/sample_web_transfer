@@ -21,14 +21,13 @@
 #include <getopt.h>
 #include <string.h>
 #include <signal.h>
-#include <cjson.h>
+#include <cJSON.h>
 #include <pthread.h>
 #include <syslog.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <base64.h> 
-
-#include "/home/suweishuai/pro/test/web/libwebsockets-2.4-stable/lib/libwebsockets.h" //必须 找到这个文件
+#include <libwebsockets.h> //必须 找到这个文件
 
 
 /**************************************************************************************
@@ -46,27 +45,21 @@
  * 结构体/枚举体声明区
  **************************************************************************************/
 
-typedef enum {
-	TEXT,
-	BINARY,
-	NUM
-} pkt_send_format_t;
-
 
 enum demo_protocols
 {
 
-    PROTOCOL_DUMB_INCREMENT,
-    PROTOCOL_LWS_MIRROR,
+	PROTOCOL_DUMB_INCREMENT,
+	PROTOCOL_LWS_MIRROR,
 
-    /* always last */
-    DEMO_PROTOCOL_COUNT
+	/* always last */
+	DEMO_PROTOCOL_COUNT
 };
 
 struct pthread_routine_tool
 {
-    struct lws_context *context;
-    struct lws *wsi;
+	struct lws_context *context;
+	struct lws *wsi;
 };
 
 
@@ -87,22 +80,18 @@ static int flag_no_mirror_traffic, justmirror;
 char crl_path[1024] = "";
 #endif
 
-static int destroy_flag = 0;
 static int connection_flag = 0;
 static int packet_come_flag = 0;
-static int writeable_flag = 0;
 static char  WatchSID[40] = "0";//WatchEID
 static char  WatchFamiGID[40] = "0";
 static char  WatchEID[40] = "0";
 static char  GMT[40] = "0";
 
 static int cid_send = 0;
-//static int one_connect = 0;
 
-//static int flag_established = 0;
 char * cjson_to_send = NULL;
 
-pkt_send_format_t pkt_send_format = NUM;
+enum lws_write_protocol pkt_send_format;
 
 
 pthread_cond_t  cond_main,cond_write;
@@ -112,10 +101,6 @@ sem_t       sem_main;
 sem_t       sem_write;
 char buf_receve[320];
 
-
-
-
-
 pthread_t   pthid_del_linklist;
 pthread_t   pthid_insert;
 
@@ -123,8 +108,6 @@ struct shm *shms;//结构体指针定义
 int shmid;//共享内存id定义
 
 linked_list_t * list_h_pointer = NULL;
-
-
 
 
 
@@ -145,7 +128,7 @@ int file_size(const char * filename)
 }  
 
 
-static void gennerate_cjson(char **p)
+static void generate_login_cjson(char **p)
 {
 	cJSON *root,*fmt;
 
@@ -153,7 +136,6 @@ static void gennerate_cjson(char **p)
 	cJSON_AddStringToObject(root,"Version","00030000");
 	cJSON_AddNumberToObject(root, "SN", 142);
 	cJSON_AddNumberToObject(root, "CID", 10211);
-	cid_send = 10211;
 	cJSON_AddItemToObject(root, "PL", fmt=cJSON_CreateObject());
 	cJSON_AddStringToObject(fmt,"Name", "865843024562586");
 	cJSON_AddStringToObject(fmt, "Password", "5F64E333CEDB15AD7182D18FC070F8DB");
@@ -163,7 +145,6 @@ static void gennerate_cjson(char **p)
 	cJSON_Delete(root);
 	return ;
 }
-
 
 
 
@@ -179,8 +160,10 @@ static void show_http_content(const char *p, size_t l)
 	}
 }
 
-static int websocket_write_back(struct lws *wsi_in, char *str, int str_size_in)
+//目前测试 写 LWS_WRITE_TEXT 成功 ,不知道 写 LWS_WRITE_BINARY 是否可以成功
+static int websocket_write_back(struct lws *wsi_in, char *str, int str_size_in,enum lws_write_protocol pkt_send_format)
 {
+
 	if (str == NULL || wsi_in == NULL)
 		return -1;
 
@@ -197,7 +180,7 @@ static int websocket_write_back(struct lws *wsi_in, char *str, int str_size_in)
 	//* setup the buffer*/
 	memcpy (out + LWS_SEND_BUFFER_PRE_PADDING, str, len );
 	//* write out*/
-	n = lws_write(wsi_in, out + LWS_SEND_BUFFER_PRE_PADDING, len, LWS_WRITE_TEXT);
+	n = lws_write(wsi_in, out + LWS_SEND_BUFFER_PRE_PADDING, len, pkt_send_format);
 
 	//  printf("[websocket_write_back] %s\n", str);
 	//* free the buffer*/
@@ -206,40 +189,6 @@ static int websocket_write_back(struct lws *wsi_in, char *str, int str_size_in)
 	return n;
 }
 
-#if 0
-
-static int websocket_write_audio(struct lws *wsi_in, char *str, int str_size_in)
-{
-	if (str == NULL || wsi_in == NULL)
-		return -1;
-
-	int n;
-	int len;
-	unsigned char *out = NULL;
-
-	if (str_size_in < 1)
-	{
-		len = strlen(str);
-	}
-	else
-		len = str_size_in;
-
-	printf("len = %d\n",len);
-
-	out = (unsigned char *)malloc(sizeof(unsigned char)*(LWS_SEND_BUFFER_PRE_PADDING + len + LWS_SEND_BUFFER_POST_PADDING));
-	//* setup the buffer*/
-	memcpy (out + LWS_SEND_BUFFER_PRE_PADDING, str, len );
-	//* write out*/
-	n = lws_write(wsi_in, out + LWS_SEND_BUFFER_PRE_PADDING, len,LWS_WRITE_BINARY);
-
-	//  printf("[websocket_write_back] %s\n", str);
-	//* free the buffer*/
-	free(out);
-
-	return n;
-}
-
-#endif
 void xun_uint_to_char(unsigned int a ,unsigned char *tab,int len)
 {
 	int  i;
@@ -252,44 +201,43 @@ void xun_uint_to_char(unsigned int a ,unsigned char *tab,int len)
 }
 
 void sig_handler(int arg){
-	
+
 	switch(arg){
-	
-		case SIGINT:
 
-			printf(RED "Recovering memory...");
+	case SIGINT:
 
-			delete_linklist_all(list_h_pointer);
+		printf(RED "Recovering memory...");
 
-			printf("\tDONE\n" NONE);
+		delete_linklist_all(list_h_pointer);
 
-			//做一些其他的回收的事情
-			//
-			force_exit = 1;
+		printf("\tDONE\n" NONE);
 
-			shmdt(shms);
-			shmctl(shmid, IPC_RMID, NULL);
-			exit(23); //这个23需要定义
-			
-			break;
+		//做一些其他的回收的事情
+		force_exit = 1;
 
-		default:
-			;
+		shmdt(shms);
+		shmctl(shmid, IPC_RMID, NULL);
+		exit(23); //这个23需要定义
+
+		break;
+
+	default:
+		;
 	}
 	return ;
 }
 
 #if 0
 
-	static int
+static int
 callback_lws_mirror(struct lws *wsi, enum lws_callback_reasons reason,
 		void *user, void *in, size_t len)
 {
 	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 	return 0;
 }
-	
-	static int
+
+static int
 callback_test_raw_client(struct lws *wsi, enum lws_callback_reasons reason,
 		void *user, void *in, size_t len)
 {
@@ -308,7 +256,7 @@ callback_test_raw_client(struct lws *wsi, enum lws_callback_reasons reason,
  */
 
 
-	static int
+static int
 callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
 		void *user, void *in, size_t len)
 {
@@ -335,7 +283,7 @@ callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
 		//flag_established = 1;
 
 		// connection_flag = 1;
-		// gennerate_cjson(&cjson_to_send);
+		// generate_cjson(&cjson_to_send);
 		//websocket_write_back(wsi,cjson_to_send,-1);
 
 
@@ -350,7 +298,7 @@ callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
 		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 		//得到信号,解锁
 
-		// gennerate_cjson(&cjson_to_send);
+		// generate_cjson(&cjson_to_send);
 		//websocket_write_back(wsi,cjson_to_send,-1);
 
 
@@ -363,18 +311,23 @@ callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
 	case LWS_CALLBACK_CLOSED:
 		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLOSED \n",__FILE__,__func__,__LINE__);
 		lwsl_notice("dumb: LWS_CALLBACK_CLOSED\n");
-		destroy_flag = 1;
 		connection_flag = 0;
 		wsi_dumb = NULL;
 		break;
 
 	case LWS_CALLBACK_CLIENT_RECEIVE:
 
+		// 3. 得到ack
+
+		// 4. 3.R
+		// 5. 得到消息
+		// 6. 4.R
+
 		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_RECEIVE \n",__FILE__,__func__,__LINE__);
 		((char *)in)[len] = '\0';
 		lwsl_info("rx :%d  .%s.\n", (int)len, (char *)in);
 
-		if(pkt_send_format == TEXT){
+		if(pkt_send_format == LWS_WRITE_TEXT){
 			strcat(buf_receve,(char *)in);
 			if((int)len < 512)
 			{
@@ -464,7 +417,7 @@ callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
 
 
 			printf("\nthe  packet above  is ack pakcet\n");
-		}else if(pkt_send_format == BINARY){
+		}else if(pkt_send_format == LWS_WRITE_BINARY){
 			strcat(buf_receve,(char *)in);
 			if((int)len < 512)
 			{
@@ -486,8 +439,6 @@ callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
 
 
 
-		// if (writeable_flag)
-		//   destroy_flag = 1;
 
 		break;
 
@@ -575,7 +526,6 @@ callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
 		//pthread_cond_signal(&cond_write);
 		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_WRITEABLE\n",__FILE__,__func__,__LINE__);
 		lwsl_info("Client wsi %p writable\n", wsi);
-		writeable_flag = 1;
 
 		printf("state LWS_CALLBACK_CLIENT_WRITEABLE\n");
 		//	while(1);
@@ -695,225 +645,16 @@ static const struct lws_extension exts[] =
 
 
 
-
-
-static void * thread_del_list(void *tool_in){
-
-	int fifo_fd = -1;
-	char buf[32];
-
-	//struct lws_client_connect_info i;//这个是个性化设置  *(i.pwsi)->desc.sockfd
-	struct pthread_routine_tool *tool = (struct pthread_routine_tool*)tool_in;
-	unsigned char *audio_pkt_p = NULL;
-	unsigned char * tmp_p = NULL;
-	char * audio_buf = NULL;
-	int ret = 0;
-	char *enc = NULL;
-	char *out = NULL;
-
-	char GGIIDD[40] = {0};
-
-	char * send_json_p = NULL;
-
-	cJSON *root,*fmt_pl ,*fmt_gp;
-
-	char  tmpConKey[64] = {0};
-
-	FILE *fp = NULL;
-
-	int filesize = 0;
-	//printf(KBRN"[pthread_routine] Good day. This is pthread_routine.\n"RESET);
-
-#if 1
-	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-
-	while(!connection_flag)  
-		usleep(1000*20);  
-	//* waiting for connection with server done.*/
-
-	//1. 发送验证包
-	//
-
-	//这个 json 包 和 可能要变化//TODO
-	pkt_send_format = TEXT;
-	gennerate_cjson(&cjson_to_send);
-	websocket_write_back(tool->wsi,cjson_to_send,-1);
-
-
-	//2. 等待回应
-	//
-	while(!packet_come_flag)  
-		usleep(1000*20);  
-	packet_come_flag = 0;
-	printf("verify packet comes\n");
-
-
-#endif
-
-	//等待 LWS_CALLBACK_CLIENT_ESTABLISHED
-	while(1){
-
-		usleep(1000*200);
-
-		print_sequence_linkedlist(list_h_pointer);
-
-		if(list_h_pointer->next == NULL)
-			continue;
-
-
-		//1. 找到第一个,发出去 //TODO
-		// list_h_pointer->next->data.context  //lws_write
- 
-
-		//websocket_write_back
-
-		//2. 组包
-		//3. 发送
-
-
-		// 2. 2.R
-		printf(GREEN "send the first node\n");
-
-		// 1.打开
-		fifo_fd = open(list_h_pointer->next->data.fifo_path,O_RDWR);
-		if(0 > fifo_fd){
-			perror("open");
-		}
-
-		bzero(buf,sizeof(buf));
-
-		snprintf(buf,sizeof(buf),"%d",list_h_pointer->next->data.key[0]); //KEY_0 是 用于 验证 2.R的
-
-
-		// 2. 写
-		printf(RED "send ack 2.R :%s to pid :%d",buf,list_h_pointer->next->data.pid);
-		write(fifo_fd,buf,sizeof(buf));
-		printf("   ...send ack 2.R DONE\n" NONE);
-
-		// 3.关闭
-		close(fifo_fd);
-
-		// 3. 得到ack
-
-		// 4. 3.R
-		// 5. 得到消息
-		// 6. 4.R
-
-		del_front_linkedlist(list_h_pointer,NULL);
-
-		printf(GREEN "send buff_to_send form linklist to ws_server\n" NONE);
-		puts("\n");
-	}
-
-	//如果为空,什么都不做
-	//
-	//如果不为空,做事情
-	//
-	//发送数据
-	//失败,重发
-	//失败几次,做某事情
-	//
-	//成功 ,删节点
-
-	return NULL;
-}
-
-
-
-static void * thread_insert(void *arg){
-	int fifo_fd = -1;
-	char buf[32];
-	bzero(buf,sizeof(buf));
-
-	while(1){
-		usleep(1000*1000);
-		//数据的互斥
-		sem_wait((sem_t *)&(shms->sem));
-
-		if(shms->shm_state == WRITEABLE){
-
-			//		printf(BLUE "msginfo :%s\n" NONE,shms->buff_to_send.msg_info.context);
-			//		printf(BLUE "node :%s\n" NONE,shms->buff_to_send.node.context);
-
-
-			//pthread_rwlock_wrlock(&(shms->lock));
-			// 1. 插入 前的判断
-			//对 msginfo 中的数据进行分析
-			//
-			//将 node  插入 链表 根据 msginfo 的内容进行怎么插入
-
-			// 2. 插入
-			//insert the buff_to_send to linklist
-			add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
-
-
-			// 3. 插入后的事情
-			// 3.1  1.R
-			// 3.2  回调
-			//从 msg_info 中找到跟进程相关的东西 ,暂定 pid ,然后发送给该 pid 一个回应,表示已经接收到
-			//该pid 已经对该回应进行 判断, 如果是正确的回应,则确定 已经发送到 ws_client
-			//插入成功,做回调
-
-			// shms->buff_to_send.msg_info.pid
-
-			//回应必须只发给他 ,因为 我已经接到了,所以 最好用个保险的方式
-			//通知他, 让 客户端的程序最简化
-
-
-			printf(YELLOW "recv msg form pid : %d" NONE,shms->buff_to_send.msg_info.pid);
-
-
-			printf("%s\n",shms->buff_to_send.msg_info.fifo_path);
-			printf("%s\n",shms->buff_to_send.node.context);
-
-
-			// 1.打开
-			fifo_fd = open((char *)(shms->buff_to_send.msg_info.fifo_path),O_RDWR);
-			if(0 > fifo_fd){
-				perror("open");
-			}
-
-			snprintf(buf,sizeof(buf),"%d",shms->buff_to_send.msg_info.key_1R);
-
-
-			// 2. 写
-			printf(RED "send ack 1.R:%s",buf);
-			write(fifo_fd,buf,sizeof(buf));
-			printf("   ...send ack 1.R DONE\n" NONE);
-
-			// 3.关闭
-			close(fifo_fd);
-
-
-			bzero(buf,sizeof(buf));
-
-			printf(GREEN "insert buff_to_send into linklist\n" NONE);
-			shms->shm_state = NUMBER_OF_MEMBERS;
-			//pthread_rwlock_unlock(&(shms->lock));
-			//
-		}
-
-		sem_post((sem_t *)&(shms->sem));
-	}
-
-	return NULL;
-}
-
-
 static int shm_init(void){
 
-	key_t key;//key定义
+	key_t key;
 
 	int access(const char *filename, int mode);
 	if(access(SHM_PATH,F_OK) != 0)
-
 	{
 		printf("mkdir SHM_PATH\n");
 		system("mkdir " SHM_PATH);
 	}
-
-
-
 
 	key = ftok(SHM_PATH,'r');//获取key
 	if(-1 == key){
@@ -921,6 +662,7 @@ static int shm_init(void){
 		printf(YELLOW "you can try to solve it by mkdir %s\n" NONE,SHM_PATH);
 		return -1; 
 	}   
+
 	shmid = shmget(key,sizeof(struct shm),IPC_CREAT|IPC_EXCL|0666);//共享内存的获取
 	if(-1 == shmid){
 		if(errno == EEXIST){
@@ -937,10 +679,11 @@ static int shm_init(void){
 		return -1; 
 	}
 
+	bzero(shms,sizeof(struct shm)); //清 0 共享内存
+
+	//下面为初始化 共享内存中的数据
 	shms->shm_state = NUMBER_OF_MEMBERS; //这个状态不用来进行逻辑判断
-
-
-	sem_init((sem_t *)&(shms->sem), 0, 1);
+	sem_init((sem_t *)&(shms->sem), 0, 1); 
 
 	return 0;
 }
@@ -976,14 +719,11 @@ static int ratelimit_connects(unsigned int *last, unsigned int secs)
 	struct timeval tv;
 
 	gettimeofday(&tv, NULL);
-	//printf("sws : %s,%s,line = %d,tv.tv_sec = %ld, (*last) = %d,secs = %d\n",__FILE__,__func__,__LINE__,tv.tv_sec,(*last),secs);
 	if (tv.tv_sec - (*last) < secs)
 	{
-		//printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 		return 0;
 	}
 	*last = tv.tv_sec;
-	//printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 
 	return 1;
 }
@@ -998,6 +738,181 @@ void usage(void){
 }
 
 
+
+
+/**************************************************************************************
+ * 线程区
+ **************************************************************************************/
+
+/*
+ *功能 : 按照顺序 
+ 		1. 读取共享内存 中的 东西
+ * 		2. 插入链表中
+ * 		3. 发送 1.R
+ *
+ * */
+
+static void * thread_insert(void *arg){
+	int fifo_fd = -1;
+	char buf[32];
+	bzero(buf,sizeof(buf));
+
+	while(1){
+		usleep(1000*1000); //需要被其他机制 替代
+		sem_wait((sem_t *)&(shms->sem));
+
+		if(shms->shm_state == WRITEABLE){ //普通进程 已经写入了
+
+			// 1. 插入 前的判断 //TODO
+			//对 msginfo 中的数据进行分析
+			//将 node  插入 链表 根据 msginfo 的内容进行怎么插入
+
+			printf(YELLOW "recv msg form pid : %d" NONE,shms->buff_to_send.msg_info.pid);
+			printf("%s\n",shms->buff_to_send.msg_info.fifo_path);
+			printf("%s\n",shms->buff_to_send.node.context);
+
+			// 2. 插入 从后插,目前这么做 ,之后根据 1 来 进行选择怎么插入
+			printf(GREEN "insert buff_to_send into linklist\n" NONE);
+			add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
+
+			// 3. 发送 2.R
+			//从 msg_info 中找到跟进程相关的东西 ,暂定 pid ,然后发送给该 pid 一个回应,表示已经接收到
+			//该pid 已经对该回应进行 判断, 如果是正确的回应,则确定 已经发送到 ws_client
+			//回应必须只发给对应的进程 ,因为 我已经接到了,所以 最好用个保险的方式
+			//通知他, 让 客户端的程序最简化
+
+			// 1.打开
+			fifo_fd = open((char *)(shms->buff_to_send.msg_info.fifo_path),O_RDWR);
+			if(0 > fifo_fd){
+				perror("open");
+			}
+			snprintf(buf,sizeof(buf),"%d",shms->buff_to_send.msg_info.key_1R);
+
+			// 2. 写
+			printf(RED "send ack 1.R:%s",buf);
+			write(fifo_fd,buf,sizeof(buf));
+			printf("   ...send ack 1.R DONE\n" NONE);
+			// 3.关闭
+			close(fifo_fd);
+			bzero(buf,sizeof(buf));
+
+			shms->shm_state = NUMBER_OF_MEMBERS;//修改 为 一个 不会 被 判断 的状态, 因为每次 要 判断 shms->shm_state == WRITEABLE 
+		}
+
+		sem_post((sem_t *)&(shms->sem));
+	}
+	return NULL;
+}
+
+/*
+ *功能 : 按照顺序 
+ 		1. 读取链表节点的信息
+		2. 组包
+ * 		3. 发送消息
+ * 		4. 发送 2.R
+ * 		5. 删除对应的链表节点
+ *
+ * */
+
+static void * thread_del_list(void *tool_in){
+
+	int fifo_fd = -1;
+	char buf[32];
+	struct pthread_routine_tool *tool = (struct pthread_routine_tool*)tool_in;
+	unsigned char *audio_pkt_p = NULL;
+	unsigned char * tmp_p = NULL;
+	char * audio_buf = NULL;
+	int ret = 0;
+	char *enc = NULL;
+	char *out = NULL;
+	char * send_json_p = NULL;
+
+	cJSON *root,*fmt_pl ,*fmt_gp;
+
+	char  tmpConKey[64] = {0};
+
+	FILE *fp = NULL;
+
+	int filesize = 0;
+
+	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+
+	// 1. 等待  web_socket 连接建立
+	while(!connection_flag)  // 连接建立完成,会达到 一个状态 LWS_CALLBACK_CLIENT_ESTABLISHED ,在这个状态中 , 置位 connection_flag 为 1
+		usleep(1000*20);  
+
+	// 2. 发送log_in 包
+
+	generate_login_cjson(&cjson_to_send); //生成 json包
+	pkt_send_format = LWS_WRITE_TEXT; //发送的格式
+	cid_send = 10211; //设置 cid_send
+	//pkt_send_format  cid_send 会在 这次 对应的 收到的 包中进行 校验 
+	websocket_write_back(tool->wsi,cjson_to_send,-1,pkt_send_format);
+
+	//2. 等待 log_in 包的 回应
+	while(!packet_come_flag)  //packet_come_flag 会在 收到 正确的包 时 置位 1
+		usleep(1000*20);  
+	packet_come_flag = 0;
+	printf("verify packet comes\n");
+
+
+	while(1){ //这里 循环发送包
+
+		usleep(1000*200); //在 正常工作 时,这个需要 处理一下, 用别的机制代替 //TODO
+
+		print_count_linkedlist(list_h_pointer); //打印 链表中有多少节点
+
+		if(list_h_pointer->next == NULL) //如果为空链表,头结点中没有数据
+			continue;
+
+
+		// 1. 组包  ,引用的为 链表头结点 后面的包
+
+		// list_h_pointer->next->data.context  
+
+
+		// 2. 发包,发头结点后面的包
+
+		//websocket_write_back
+
+		printf(GREEN "send the first node\n");
+
+
+		// 2. 发送 2.R
+
+		// 1.打开
+		fifo_fd = open(list_h_pointer->next->data.fifo_path,O_RDWR);
+		if(0 > fifo_fd){
+			perror("open");
+		}
+		bzero(buf,sizeof(buf));
+		snprintf(buf,sizeof(buf),"%d",list_h_pointer->next->data.key[0]); //KEY_0 是 用于 验证 2.R的
+		// 2. 写
+		printf(RED "send ack 2.R :%s to pid :%d",buf,list_h_pointer->next->data.pid);
+		write(fifo_fd,buf,sizeof(buf));
+		printf("   ...send ack 2.R DONE\n" NONE);
+
+		// 3.关闭
+		close(fifo_fd);
+
+		// 3. 删 掉 发送过的节点
+		del_front_linkedlist(list_h_pointer,NULL);
+
+
+		printf(GREEN "send buff_to_send form linklist to ws_server\n" NONE);
+		puts("\n");
+	}
+	return NULL;
+}
+
+
+/*
+ *功能 : 按照顺序 
+ * 		1. 读取参数,设置变量
+ *		2. 依次建立 tcp  ssl web_socket 连接
+ * 		3. 接收消息
+ * 		4. 发送 3.R 或者 4.R
+ * */
 
 int main(int argc, const char *argv[])
 {
@@ -1015,8 +930,11 @@ int main(int argc, const char *argv[])
 	char cert_path[1024] = "";
 	char key_path[1024] = "";
 	char ca_path[1024] = "";
+	int count = 0; //此函数 中有一个循环,这个用来 计数循环的次数
 
-	//create_objects();
+
+	struct pthread_routine_tool tool; //线程创建时,传的参数
+
 	memset(&info, 0, sizeof info);
 
 	lwsl_notice("libwebsockets test client - license LGPL2.1+SLE\n");
@@ -1100,17 +1018,11 @@ int main(int argc, const char *argv[])
 	if (optind >= argc)
 		usage();
 
-
-
 	ret = shm_init();
 	if(ret)
 		printf(RED "shm_init failed\n" NONE);
 
-
-
 	list_h_pointer = create_linkedlist();
-
-
 
 	signal(SIGINT, sig_handler);
 
@@ -1255,101 +1167,91 @@ int main(int argc, const char *argv[])
 
 
 	//i填充已经完毕
-	m = 0;
-	int sws_count = 0;
 
-	while (!force_exit)  //会在ctrl + c的时候 force_exit 变为 1 ,条件不满足
+
+	//lws_client_connect_via_info
+	if (do_multi)  //0
 	{
-
-		sws_count ++;
-
-		printf("sws : %s,%s,line = %d do_multi: %d,sws_count = %d\n",__FILE__,__func__,__LINE__,do_multi,sws_count);//1
-		if (do_multi)  //0
+		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+		for (n = 0; n < ARRAY_SIZE(wsi_multi); n++)
 		{
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-			for (n = 0; n < ARRAY_SIZE(wsi_multi); n++)
+			if (!wsi_multi[n] && ratelimit_connects(&rl_multi[n], 2u))
 			{
-				if (!wsi_multi[n] && ratelimit_connects(&rl_multi[n], 2u))
-				{
-					lwsl_notice("dumb %d: connecting\n", n);
-					i.protocol = protocols[PROTOCOL_DUMB_INCREMENT].name;
-					i.pwsi = &wsi_multi[n];
-					printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-					lws_client_connect_via_info(&i);
-				}
+				lwsl_notice("dumb %d: connecting\n", n);
+				i.protocol = protocols[PROTOCOL_DUMB_INCREMENT].name;
+				i.pwsi = &wsi_multi[n];
+				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+				lws_client_connect_via_info(&i);
 			}
+		}
+	}
+	else
+	{
+		printf("sws : %s,%s,line = %d,do_ws = %d\n",__FILE__,__func__,__LINE__,do_ws);//1
+
+		if (do_ws)  // 1
+		{
+			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
+			if (!justmirror && !wsi_dumb && ratelimit_connects(&rl_dumb, 2u))   // return 0//-----------------------  //目前就这一个工作
+			{
+				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
+				lwsl_notice("dumb: connecting\n");
+				i.protocol = protocols[PROTOCOL_DUMB_INCREMENT].name;
+				i.pwsi = &wsi_dumb;
+				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+
+				lws_client_connect_via_info(&i);//  再循环中只执行一次
+
+				tool.wsi = wsi_dumb;
+				tool.context = context;
+
+			}
+
+#if LWS_DEFINE
+			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
+			if (!wsi_mirror && ratelimit_connects(&rl_mirror, 2u))  //-----------------------------------------------
+			{
+				lwsl_notice("mirror: connecting\n");
+				i.protocol = protocols[PROTOCOL_LWS_MIRROR].name;
+				i.pwsi = &wsi_mirror;
+				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+				wsi_mirror = lws_client_connect_via_info(&i);////////再循环中只循环一次
+				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+
+			}
+#endif
 		}
 		else
 		{
-			printf("sws : %s,%s,line = %d,do_ws = %d\n",__FILE__,__func__,__LINE__,do_ws);//1
-
-			if (do_ws)  // 1
+			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+			if (!wsi_dumb && ratelimit_connects(&rl_dumb, 2u))  //----------------------------------
 			{
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
-				if (!justmirror && !wsi_dumb && ratelimit_connects(&rl_dumb, 2u))   // return 0//-----------------------  //目前就这一个工作
-				{
-					printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
-					lwsl_notice("dumb: connecting\n");
-					i.protocol = protocols[PROTOCOL_DUMB_INCREMENT].name;
-					i.pwsi = &wsi_dumb;
-					printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-
-					lws_client_connect_via_info(&i);//  再循环中只执行一次
-
-				}
-
-#if LWS_DEFINE
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
-				if (!wsi_mirror && ratelimit_connects(&rl_mirror, 2u))  //-----------------------------------------------
-				{
-					lwsl_notice("mirror: connecting\n");
-					i.protocol = protocols[PROTOCOL_LWS_MIRROR].name;
-					i.pwsi = &wsi_mirror;
-					printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-					wsi_mirror = lws_client_connect_via_info(&i);////////再循环中只循环一次
-					printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-
-				}
-#endif
-			}
-			else
-			{
+				lwsl_notice("http: connecting\n");
+				i.pwsi = &wsi_dumb;
 				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-				if (!wsi_dumb && ratelimit_connects(&rl_dumb, 2u))  //----------------------------------
-				{
-					lwsl_notice("http: connecting\n");
-					i.pwsi = &wsi_dumb;
-					printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-					lws_client_connect_via_info(&i);
-				}
+				lws_client_connect_via_info(&i);
 			}
 		}
+	}
 
-		if(sws_count == 1)
-		{
-			struct pthread_routine_tool tool;
-			tool.wsi = wsi_dumb;
-			tool.context = context;
+	if(0 != pthread_create(&pthid_insert,NULL,thread_insert,NULL)){
+		perror("pthid1");
+		return -1;
+	}
 
+	if(0 != pthread_create(&pthid_del_linklist,NULL,thread_del_list,&tool)){
+		perror("pthid1");
+		return -1;
+	}
 
-			if(0 != pthread_create(&pthid_insert,NULL,thread_insert,NULL)){
-				perror("pthid1");
-				return -1;
-			}
+	m = 0;
+	while (!force_exit)  //会在ctrl + c的时候 force_exit 变为 1 ,条件不满足
+	{
+		count ++;
 
-			if(0 != pthread_create(&pthid_del_linklist,NULL,thread_del_list,&tool)){
-				perror("pthid1");
-				return -1;
-			}
-
-			//pthread_detach(pthid_del_linklist);
-			//pthread_detach(pthid_insert);
-
-		}
-		printf("sws : %s,%s,line = %d-------------------------------------------%d-----lws_service begin\n",__FILE__,__func__,__LINE__,sws_count);//1
+		printf("sws : %s,%s,line = %d-------------------------------------------%d-----lws_service begin\n",__FILE__,__func__,__LINE__,count);//1
 		lws_service(context, 500);//在循环中执行n次
-		printf("sws : %s,%s,line = %d-------------------------------------------%d-----lws_service end\n",__FILE__,__func__,__LINE__,sws_count);//1
-
+		printf("sws : %s,%s,line = %d-------------------------------------------%d-----lws_service end\n",__FILE__,__func__,__LINE__,count);//1
 
 		if (do_multi)
 		{

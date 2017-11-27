@@ -1,6 +1,8 @@
-export CC=gcc
-export CPP=g++
-export CFLAGS= -g -lpthread -D_DEBUG -lwebsockets -lpthread -lcjson  -lbase64 -lm -ldl
+CC=gcc
+CPP=g++
+CFLAGS = -g -D_DEBUG -I./include  # 编译的时候用到的
+LDFLAGS = #链接的时候用到的
+LIBS = -lpthread -lwebsockets -lpthread -lcJSON  -lbase64 -lm -ldl #链接的时候用到的
 
 
 CSRCS = $(wildcard *.c)  
@@ -23,14 +25,14 @@ all: ws_client process
 	$(CPP) -c  $^ -o $@ -g $(CFLAGS)
 
 ws_client : ws_client.o linklist.o
-	$(CC) $^ -o $@ $(CFLAGS)
+	$(CC) $^ -o $@ $(LDFLAGS) $(LIBS)
 
-process : process.o
-	$(CC) $^ -o $@ $(CFLAGS)
+process : process.o process_lib.o
+	$(CC) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 
 
 clean:
-	rm *.o $(OBJ)  -rf
+	rm *.o $(OBJ)  core -rf
 
 .PHONY:clean

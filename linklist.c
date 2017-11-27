@@ -232,6 +232,34 @@ int print_sequence_linkedlist(linked_list_t * list_pointer)
 	return 0;
 }
 
+//打印 有多少节点
+
+int print_count_linkedlist(linked_list_t * list_pointer)
+{
+	int count = 0;
+	if(isnull(list_pointer))
+	{
+		printf(PURPLE "%d nodes in the linklist\n" NONE,count);
+		return -1;
+	}
+
+	linked_list_t * tmp_pointer = list_pointer;
+	do
+	{
+		//printf("%d\t",tmp_pointer->next->data);
+	//	printf("%s\t",tmp_pointer->next->data.context);
+		count ++;
+		tmp_pointer = tmp_pointer->next;
+	}while(tmp_pointer->next != NULL);
+//	putchar('\n');
+	printf(PURPLE "%d nodes in the linklist\n" NONE,count);
+	return 0;
+}
+
+
+
+
+
 //打印节点之逆序打印
 
 int print_reverse_linkedlist(linked_list_t * list_pointer)
