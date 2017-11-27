@@ -1,6 +1,6 @@
 export CC=gcc
 export CPP=g++
-export CFLAGS= -g -lpthread
+export CFLAGS= -g -lpthread -D_DEBUG -lwebsockets -lpthread -lcjson  -lbase64 -lm -ldl
 
 
 CSRCS = $(wildcard *.c)  
@@ -17,10 +17,10 @@ OBJ += $(CPPOBJS)
 all: ws_client process
 
 %.o:%.c 
-	$(CC) -c $^ -o $@  -g
+	$(CC) -c $^ -o $@  -g $(CFLAGS)
 
 %.o:%.cpp 
-	$(CPP) -c  $^ -o $@ -g
+	$(CPP) -c  $^ -o $@ -g $(CFLAGS)
 
 ws_client : ws_client.o linklist.o
 	$(CC) $^ -o $@ $(CFLAGS)

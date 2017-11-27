@@ -25,7 +25,7 @@ typedef struct {
 
 	pid_t pid;
 
-	char context[30];
+	char context[4096];
 
 } msg_info_t;
 
@@ -56,9 +56,13 @@ struct shm////共享内存使用的结构体的声明
 	volatile pthread_rwlock_t lock;
 
 	volatile sem_t       			sem; //这个不能用 volatile 修饰 ,修饰会报错 ,但不修饰会不会出现错误 //TODO
+	//sem_t       			sem; //这个不能用 volatile 修饰 ,修饰会报错 ,但不修饰会不会出现错误 //TODO
     volatile shm_state_t 	shm_state; 
+    //shm_state_t 	shm_state; 
 	volatile msg_send_t 	buff_to_send; // 从 ws client 发送 到 ws server 的数据
 	volatile char 			buff_to_recv[BUFFSIZE];
+	//msg_send_t 	buff_to_send; // 从 ws client 发送 到 ws server 的数据
+	//char 			buff_to_recv[BUFFSIZE];
 };
 
 

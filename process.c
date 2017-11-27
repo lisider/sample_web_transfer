@@ -7,12 +7,45 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
 //#define FIFO_PATH "/tmp/fifo1"
+
+struct shm *shms;//结构体指针定义 
+int shmid;//共享内存id定义
+
+char fifo_path[32];
+
+void sig_handler(int arg){
+	
+	char rm_fifo_str[40];
+	switch(arg){
+	
+		case SIGINT:
+
+
+			// 1. 删 fifo 文件
+			bzero(rm_fifo_str,sizeof(rm_fifo_str));
+			strcpy(rm_fifo_str,"rm -f ");
+			strcat(rm_fifo_str,fifo_path);
+			system(rm_fifo_str);
+
+			// 2. 取消共享内存的映射
+			shmdt(shms);
+			exit(23); //这个23需要定义
+			
+			break;
+
+		default:
+			;
+	}
+	return ;
+}
+
 
 void call_back_1R(void){
 	
@@ -42,12 +75,10 @@ typedef void (*call_back_fun_t)(void);
 
 call_back_fun_t call_back_fun[4] = {call_back_1R,call_back_2R,call_back_3R,call_back_4R};
 
-struct shm *shms;//结构体指针定义 
 
 static int shm_init(void){
 
 	key_t key;//key定义
-	int shmid;//共享内存id定义
 
 	key = ftok(SHM_PATH,'r');//获取key
 	if(-1 == key){
@@ -89,7 +120,7 @@ typedef enum {
 read_state_t read_state =  READ_INIT;
 
 
-void fun_main(char *path){
+void fun_main(const char *path){
 	int ret = 0;
 	int count = 1;
 	int fifo_fd = -1;
@@ -147,7 +178,6 @@ void fun_main(char *path){
 		bzero(buf_verify,sizeof(buf_verify));
 		//read
 		//printf("shm state : %s\n", shms->shm_state == 0 ?("WRITEABLE"):(shms->shm_state == 1?("READABLE"):("NUMBER_OF_MEMBERS")));
-		if(shms->shm_state == READABLE){
 
 #if 0
 
@@ -156,7 +186,7 @@ void fun_main(char *path){
 
 
 loop:
-			if (sem_trywait(&(shms->sem)) == -1){
+			if (sem_trywait((sem_t *)&(shms->sem)) == -1){
 				
 				perror("sem_trywait");
 
@@ -177,21 +207,21 @@ loop:
 
 			// write 1 填充 node
 			bzero((void *)&(shms->buff_to_send.node),sizeof(node_t));
-			strcpy(shms->buff_to_send.node.context,"i am node context");
+			strcpy((char *)(shms->buff_to_send.node.context),"i am node context");
 			shms->buff_to_send.node.pid = getpid();
 			shms->buff_to_send.node.key[0] = count+30;
 			shms->buff_to_send.node.key[1] = count+60;
 			shms->buff_to_send.node.key[2] = count+90;
-			strcpy(shms->buff_to_send.node.fifo_path,FIFO_PATH);
+			strcpy((char *)(shms->buff_to_send.node.fifo_path),FIFO_PATH);
 			printf(GREEN "node :%s\n" NONE,shms->buff_to_send.node.context);
 
 
 			//填充  msg_info
 			bzero((void *)&(shms->buff_to_send.msg_info),sizeof(msg_info_t));
-			strcpy(shms->buff_to_send.msg_info.context,"i am node context");
+			strcpy((char *)(shms->buff_to_send.msg_info.context),"i am node context");
 			shms->buff_to_send.msg_info.key_1R = count;
 			shms->buff_to_send.msg_info.pid = getpid();
-			strcpy(shms->buff_to_send.msg_info.fifo_path,FIFO_PATH);
+			strcpy((char *)(shms->buff_to_send.msg_info.fifo_path),FIFO_PATH);
 			printf(GREEN "msg_info :%s\n" NONE,shms->buff_to_send.msg_info.context);
 
 			// fill in buff_to_send with data
@@ -217,7 +247,7 @@ loop:
 				}
 			}
 
-			sem_post(&(shms->sem));
+			sem_post((sem_t *)&(shms->sem));
 
 
 			printf(PURPLE "%dth msg to the ws_client\n" NONE,count);
@@ -259,7 +289,7 @@ READ_AGGIN:
 						if(read(fifo_fd,buf,sizeof(buf)) <=0){
 
 							printf(RED "%d.R read error,abandon the packet\n" NONE,read_state+1);
-							exit(12);
+							break;//这时,放弃 整个数据的传输,这时,要告诉 发送者,这个包不被传输//TODO
 						}
 					}  
 				}
@@ -288,7 +318,6 @@ READ_AGGIN:
 			count ++;
 			puts("\n");
 
-		}
 	}
 
 	return ;
@@ -307,6 +336,12 @@ int main(int argc, const char *argv[]){
 
 	if(argc != 2)
 		usage();
+
+	bzero(fifo_path,sizeof(fifo_path));
+
+	strncpy(fifo_path,argv[1],32);
+
+	signal(SIGINT, sig_handler);
 
 	ret = shm_init();
 	if(ret)
