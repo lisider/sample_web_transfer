@@ -1,8 +1,8 @@
 CC=gcc
 CPP=g++
 CFLAGS = -g -D_DEBUG -I./include  # 编译的时候用到的
-LDFLAGS = #链接的时候用到的
-LIBS = -lpthread -lwebsockets -lpthread -lcJSON  -lbase64 -lm -ldl #链接的时候用到的
+LDFLAGS = -L./lib#链接的时候用到的
+LIBS = -lpthread   -lbase64  -lcJSON -lcrypto -lssl -lwebsockets -lpthread  -lm -Wl,-rpath=/usr/local/lib -Wl,-rpath,./lib
 
 
 CSRCS = $(wildcard *.c)  
