@@ -1,2 +1,5 @@
 imibaby.net.pem
 tags
+*.o
+process
+ws_client
