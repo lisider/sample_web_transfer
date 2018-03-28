@@ -71,7 +71,7 @@ struct shm////共享内存使用的结构体的声明
 
 
 typedef enum {
-    NONE,
+    Unknown_state,
     R1,
     R2,
     R3,

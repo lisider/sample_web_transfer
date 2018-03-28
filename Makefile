@@ -24,7 +24,7 @@ all: ws_client process
 %.o:%.cpp 
 	$(CPP) -c  $^ -o $@ -g $(CFLAGS)
 
-ws_client : ws_client.o linklist.o read_write_state_api.o
+ws_client : ws_client.o  read_write_state_api.o
 	$(CC) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 process : process.o process_lib.o read_write_state_api.o

@@ -231,11 +231,11 @@ int main(int argc, const char *argv[]){
         // write 1 填充 node                                                                    
         bzero((void *)&(buff_to_send->node),sizeof(node_t));                               
         strcpy((char *)(buff_to_send->node.context),"i am node context");                  
-        buff_to_send->node.pid = getpid();                                                 
+        //buff_to_send->node.pid = getpid();                                                 
         buff_to_send->node.key[0] = count+30;                                              
         buff_to_send->node.key[1] = count+60;                                              
         buff_to_send->node.key[2] = count+90;                                              
-        strcpy((char *)(buff_to_send->node.fifo_path),argv[1]);
+        //strcpy((char *)(buff_to_send->node.fifo_path),argv[1]);
         //printf(GREEN "node :%s\n" NONE,buff_to_send->node.context);                        
 
         //填充  msg_info                                                                        

@@ -10,6 +10,7 @@
 #include <errno.h>
 #include "common.h"
 #include "linklist.h"
+#include "list.h"
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -108,9 +109,15 @@ pthread_t   pthid_insert;
 struct shm *shms;//结构体指针定义 
 int shmid;//共享内存id定义
 
-linked_list_t * list_h_pointer = NULL;
+//linked_list_t * list_h_pointer = NULL;
+
+typedef struct  _list_xxx_t{
+    msg_send_t data;
+    struct list_head list;
+}list_xxx_t;
 
 
+list_xxx_t list_xxx_head;
 
 /**************************************************************************************
  * 函数定义区
@@ -209,48 +216,64 @@ void sig_handler(int arg){
 
 		printf(RED "Recovering memory...");
 
-		delete_linklist_all(list_h_pointer);
+		//delete_linklist_all(list_h_pointer);
 
-		printf("\tDONE\n" NONE);
 
-		//做一些其他的回收的事情
-		force_exit = 1;
+                struct list_head *pos,*n;
+                list_xxx_t *tmp_xxx_node;
 
-		shmdt(shms);
-		shmctl(shmid, IPC_RMID, NULL);
-		exit(23); //这个23需要定义
+                list_for_each_safe(pos,n,&list_xxx_head.list){  		
+                    tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+                    if(1){//对链表中的数据进行判断,如果满足条件就删节点
+                        list_del(pos); // 注意,删除链表,是删除的list_head,还需要删除 外层的数据 ,删除一个节点之后,并没有破坏这个节点和外围数据的位置关系
+                        free(tmp_xxx_node);//释放数据
+                    }
+                }
 
-		break;
-	case SIGALRM:
+
+
+                printf("\tDONE\n" NONE);
+
+                //做一些其他的回收的事情
+                force_exit = 1;
+
+                shmdt(shms);
+                shmctl(shmid, IPC_RMID, NULL);
+                exit(23); //这个23需要定义
+
+                break;
+        case SIGALRM:
+
 
                 //循环链表,并删除剩余=0 的
+                printf(GREEN "i am going to Traversing chain list\n" NONE);
 
-		break;
+                break;
 
 
-	default:
-		;
-	}
-	return ;
+        default:
+                ;
+        }
+        return ;
 }
 
 #if 0
 
-static int
+    static int
 callback_lws_mirror(struct lws *wsi, enum lws_callback_reasons reason,
-		void *user, void *in, size_t len)
+        void *user, void *in, size_t len)
 {
-	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-	return 0;
+    printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+    return 0;
 }
 
-static int
+    static int
 callback_test_raw_client(struct lws *wsi, enum lws_callback_reasons reason,
-		void *user, void *in, size_t len)
+        void *user, void *in, size_t len)
 {
-	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+    printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 
-	return 0;
+    return 0;
 }
 
 #endif
@@ -263,43 +286,43 @@ callback_test_raw_client(struct lws *wsi, enum lws_callback_reasons reason,
  */
 
 
-static int
+    static int
 callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
-		void *user, void *in, size_t len)
+        void *user, void *in, size_t len)
 {
-	printf("sws : %s,%s,line = %d-----------------------callback_dumb_increment------------------one callback\n",__FILE__,__func__,__LINE__);
+    printf("sws : %s,%s,line = %d-----------------------callback_dumb_increment------------------one callback\n",__FILE__,__func__,__LINE__);
 
-	cJSON *json;
-	cJSON * item;
-	char *out;
-	int array_count = 0;
-	cJSON * array;
-	cJSON * item2;
-	cJSON * item3;
-	const char *which = "http";
-	char which_wsi[10], buf[50 + LWS_PRE];
-	int n;
-	int i = 0;
+    cJSON *json;
+    cJSON * item;
+    char *out;
+    int array_count = 0;
+    cJSON * array;
+    cJSON * item2;
+    cJSON * item3;
+    const char *which = "http";
+    char which_wsi[10], buf[50 + LWS_PRE];
+    int n;
+    int i = 0;
 
-	switch (reason)
-	{
+    switch (reason)
+    {
 
-	case LWS_CALLBACK_CLIENT_ESTABLISHED://---------------第三次回调的状态
+        case LWS_CALLBACK_CLIENT_ESTABLISHED://---------------第三次回调的状态
 
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_ESTABLISHED \n",__FILE__,__func__,__LINE__);
-		//flag_established = 1;
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_ESTABLISHED \n",__FILE__,__func__,__LINE__);
+            //flag_established = 1;
 
-		// connection_flag = 1;
-		// generate_cjson(&cjson_to_send);
-		//websocket_write_back(wsi,cjson_to_send,-1);
+            // connection_flag = 1;
+            // generate_cjson(&cjson_to_send);
+            //websocket_write_back(wsi,cjson_to_send,-1);
 
 
-		connection_flag = 1;
-		//发送信号给 write 线程
-		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		// pthread_cond_signal(&cond_write);
-		//printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		//获得锁
+            connection_flag = 1;
+            //发送信号给 write 线程
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            // pthread_cond_signal(&cond_write);
+            //printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            //获得锁
 		//阻塞
 		//     pthread_cond_wait(&cond_main,&mutex);
 		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
@@ -691,7 +714,7 @@ static int shm_init(void){
 	//下面为初始化 共享内存中的数据
         init_status(&(shms->read_write_state));
         shms->unwriteable_times_send=0;
-        shms->unwriteable_times_recv=0;
+        //shms->unwriteable_times_recv=0;
 	sem_init((sem_t *)&(shms->sem), 0, 1); 
 	//shms->shm_state = NUMBER_OF_MEMBERS; //这个状态不用来进行逻辑判断
 
@@ -763,6 +786,8 @@ void usage(void){
  * */
 
 static void * thread_insert(void *arg){
+
+    list_xxx_t *tmp_xxx_node;
 	int fifo_fd = -1;
 	char buf[32];
 	bzero(buf,sizeof(buf));
@@ -776,16 +801,35 @@ static void * thread_insert(void *arg){
 			// 1. 插入 前的判断 //TODO
 			//对 msginfo 中的数据进行分析
 			//将 node  插入 链表 根据 msginfo 的内容进行怎么插入
+                        //
+                        // 1 申请内存
+                        tmp_xxx_node = (list_xxx_t *)malloc(sizeof(list_xxx_t));
 
+                        // 2 将 共享内存中的数据拷贝过来
+                        //
+                        //void *memcpy(void *dest, const void *src, size_t n);
+                        memcpy(&(tmp_xxx_node->data),&(shms->buff_to_send),sizeof(shms->buff_to_send));
+                        //
+                        // 3 置 send_buf 可写
+                        enable_writeable_send(&(shms->read_write_state));
+
+                        // 4 释放 锁
+                        sem_post((sem_t *)&(shms->sem));
+                        
+
+                        // 读 链表中的数据,
+                        
 
                         //目前插入的数据 不够 ,应该讲send的数据全部插入
-			printf(YELLOW "recv msg form pid : %d" NONE,shms->buff_to_send.msg_info.pid);
-			printf("%s\n",shms->buff_to_send.msg_info.fifo_path);
-			printf("%s\n",shms->buff_to_send.node.context);
+			printf(YELLOW "recv msg form pid : %d" NONE,tmp_xxx_node->data.msg_info.pid);
+			printf("%s\n",tmp_xxx_node->data.msg_info.fifo_path);
+			printf("%s\n",tmp_xxx_node->data.node.context);
 
 			// 2. 插入 从后插,目前这么做 ,之后根据 1 来 进行选择怎么插入
 			printf(GREEN "insert buff_to_send into linklist\n" NONE);
-			add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
+                        list_add_tail(&(tmp_xxx_node->list),&list_xxx_head.list);
+	//		add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
+                         
 
 
 			// 3. 发送 2.R
@@ -795,29 +839,27 @@ static void * thread_insert(void *arg){
 			//通知他, 让 客户端的程序最简化
 
 			// 1.打开
-			fifo_fd = open((char *)(shms->buff_to_send.msg_info.fifo_path),O_RDWR);
+			fifo_fd = open((char *)(tmp_xxx_node->data.msg_info.fifo_path),O_RDWR);
 			if(0 > fifo_fd){
 				perror("open");
 			}
                         buf[0]=1;
-			snprintf(buf+1,sizeof(buf)-1,"%d",shms->buff_to_send.msg_info.key_1R);
+			snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.msg_info.key_1R);
 
 			// 2. 写
                          
 			printf(RED "send ack %d.R:%s",buf[0],buf+1);
 			write(fifo_fd,buf,sizeof(buf));
-                        kill(shms->buff_to_send.node.pid, SIGUSR1);
-			printf("   ...send ack %d.R to %d DONE\n" NONE,buf[0],shms->buff_to_send.node.pid);
+                        kill(tmp_xxx_node->data.msg_info.pid, SIGUSR1);
+			printf("   ...send ack %d.R to %d DONE\n" NONE,buf[0],tmp_xxx_node->data.msg_info.pid);
 			// 3.关闭
 			close(fifo_fd);
 			bzero(buf,sizeof(buf));
 
-                        enable_writeable_send(&(shms->read_write_state));
                         
 		//	shms->shm_state = NUMBER_OF_MEMBERS;//修改 为 一个 不会 被 判断 的状态, 因为每次 要 判断 shms->shm_state == WRITEABLE 
-		}
-
-		sem_post((sem_t *)&(shms->sem));
+		}else //没写入
+                    sem_post((sem_t *)&(shms->sem));
 	}
 	return NULL;
 }
@@ -853,6 +895,11 @@ static void * thread_del_list(void *tool_in){
 
 	int filesize = 0;
 
+        list_xxx_t *tmp_xxx_node;
+    struct list_head *pos,*n;
+
+        int i = 0;
+
 	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 
 	// 1. 等待  web_socket 连接建立
@@ -878,10 +925,17 @@ static void * thread_del_list(void *tool_in){
 
 		usleep(1000*200); //在 正常工作 时,这个需要 处理一下, 用别的机制代替 //TODO
 
-		print_count_linkedlist(list_h_pointer); //打印 链表中有多少节点
+		//print_count_linkedlist(list_h_pointer); //打印 链表中有多少节点
+                //
+                i = 0;
+                list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
+                    i++;
+                printf(PURPLE "%d nodes in the linklist\n" NONE,i);
 
-		if(list_h_pointer->next == NULL) //如果为空链表,头结点中没有数据
-			continue;
+		//if(list_h_pointer->next == NULL) //如果为空链表,头结点中没有数据
+		//	continue;
+                if (list_empty(&list_xxx_head.list))
+                    continue;
 
 
 		// 1. 组包  ,引用的为 链表头结点 后面的包
@@ -899,31 +953,48 @@ static void * thread_del_list(void *tool_in){
 
 		// 2. 发送 2.R
 
-		// 1.打开
-		fifo_fd = open(list_h_pointer->next->data.fifo_path,O_RDWR);
-		if(0 > fifo_fd){
-			perror("open");
-		}
-		bzero(buf,sizeof(buf));
-                buf[0] = 2;
-		snprintf(buf+1,sizeof(buf)-1,"%d",list_h_pointer->next->data.key[0]); //KEY_0 是 用于 验证 2.R的
-		// 2. 写
-		printf(RED "send ack %d.R :%s to pid :%d",buf[0],buf+1,list_h_pointer->next->data.pid);
-		write(fifo_fd,buf,sizeof(buf));
-                kill(list_h_pointer->next->data.pid,SIGUSR1);
-		printf("   ...send ack %d.R DONE\n" NONE,buf[0]);
 
-		// 3.关闭
-		close(fifo_fd);
+                list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
+                {
 
-		// 3. 删 掉 发送过的节点
-		del_front_linkedlist(list_h_pointer,NULL);
+                    // 1.打开
+                    fifo_fd = open(tmp_xxx_node->data.msg_info.fifo_path,O_RDWR);
+                    if(0 > fifo_fd){
+                        perror("open");
+                    }
+
+                    bzero(buf,sizeof(buf));
+                    buf[0] = 2;
+                    snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[0]); //KEY_0 是 用于 验证 2.R的
+                    printf(RED "send ack %d.R :%s to pid :%d",buf[0],buf+1,tmp_xxx_node->data.msg_info.pid);
 
 
-		printf(GREEN "send buff_to_send form linklist to ws_server\n" NONE);
-		puts("\n");
-	}
-	return NULL;
+                    // 2. 写
+                    write(fifo_fd,buf,sizeof(buf));
+                    kill(tmp_xxx_node->data.msg_info.pid,SIGUSR1);
+                    printf("   ...send ack %d.R DONE\n" NONE,buf[0]);
+                    break;
+                }
+
+                // 3.关闭
+                close(fifo_fd);
+
+                // 3. 删 掉 发送过的节点
+                //	del_front_linkedlist(list_h_pointer,NULL);
+
+
+                list_for_each_safe(pos,n,&list_xxx_head.list){  		
+                    tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+                    list_del(pos); // 这肯定是第一个节点
+                    free(tmp_xxx_node);//释放数据
+                    break;//跳出
+                }
+
+
+                printf(GREEN "send buff_to_send form linklist to ws_server\n" NONE);
+                puts("\n");
+        }
+        return NULL;
 }
 
 
@@ -937,360 +1008,363 @@ static void * thread_del_list(void *tool_in){
 
 int main(int argc, const char *argv[])
 {
-	bzero(buf_receve,sizeof(buf_receve));
-	int n = 0, m, ret = 0, port = 7681, use_ssl = 0, ietf_version = -1;
-	unsigned int rl_dumb = 0, do_ws = 1, pp_secs = 0, do_multi = 0;
+    bzero(buf_receve,sizeof(buf_receve));
+    int n = 0, m, ret = 0, port = 7681, use_ssl = 0, ietf_version = -1;
+    unsigned int rl_dumb = 0, do_ws = 1, pp_secs = 0, do_multi = 0;
 #if LWS_DEFINE
-	unsigned rl_mirror = 0;
+    unsigned rl_mirror = 0;
 #endif
-	struct lws_context_creation_info info;//这个是系统设置
-	struct lws_client_connect_info i;//这个是个性化设置
-	struct lws_context *context;
-	const char *prot, *p;
-	char path[300];
-	char cert_path[1024] = "";
-	char key_path[1024] = "";
-	char ca_path[1024] = "";
-	int count = 0; //此函数 中有一个循环,这个用来 计数循环的次数
+    struct lws_context_creation_info info;//这个是系统设置
+    struct lws_client_connect_info i;//这个是个性化设置
+    struct lws_context *context;
+    const char *prot, *p;
+    char path[300];
+    char cert_path[1024] = "";
+    char key_path[1024] = "";
+    char ca_path[1024] = "";
+    int count = 0; //此函数 中有一个循环,这个用来 计数循环的次数
 
 
-	struct pthread_routine_tool tool; //线程创建时,传的参数
+    struct pthread_routine_tool tool; //线程创建时,传的参数
 
-	memset(&info, 0, sizeof info);
+    memset(&info, 0, sizeof info);
 
-	lwsl_notice("libwebsockets test client - license LGPL2.1+SLE\n");
-	lwsl_notice("(C) Copyright 2010-2016 Andy Green <andy@warmcat.com>\n");
+    lwsl_notice("libwebsockets test client - license LGPL2.1+SLE\n");
+    lwsl_notice("(C) Copyright 2010-2016 Andy Green <andy@warmcat.com>\n");
 
 
-	if (argc < 2)
-		usage();
+    if (argc < 2)
+        usage();
 
-	while (n >= 0)
-	{
-		n = getopt_long(argc, (char ** const)argv, "Sjnuv:hsp:d:lC:K:A:P:mo", options, NULL);
-		if (n < 0)
-			continue;
-		switch (n)
-		{
-		case 'd':
-			lws_set_log_level(atoi(optarg), NULL);
-			break;
-		case 's': /* lax SSL, allow selfsigned, skip checking hostname */   //-----
-			use_ssl = LCCSCF_USE_SSL |
-				LCCSCF_ALLOW_SELFSIGNED |
-				LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK;
-			break;
-		case 'S': /* Strict SSL, no selfsigned, check server hostname */
-			use_ssl = LCCSCF_USE_SSL;
-			break;
-		case 'p':
-			port = atoi(optarg);
-			break;
-		case 'P':
-			pp_secs = atoi(optarg);
-			lwsl_notice("Setting pingpong interval to %d\n", pp_secs);
-			break;
-		case 'j':
-			justmirror = 1;
-			break;
-		case 'l':
-			longlived = 1;
-			break;
-		case 'v':
-			ietf_version = atoi(optarg);//13
-			break;
-		case 'u':
-			deny_deflate = 1;
-			break;
-		case 'm':
-			do_multi = 1;
-			break;
-		case 'o':
-			test_post = 1;
-			break;
-		case 'n':
-			flag_no_mirror_traffic = 1;
-			lwsl_notice("Disabled sending mirror data (for pingpong testing)\n");
-			break;
-		case 'C':
-			strncpy(cert_path, optarg, sizeof(cert_path) - 1);
-			cert_path[sizeof(cert_path) - 1] = '\0';
-			break;
-		case 'K':
-			strncpy(key_path, optarg, sizeof(key_path) - 1);
-			key_path[sizeof(key_path) - 1] = '\0';
-			break;
-		case 'A':
-			strncpy(ca_path, optarg, sizeof(ca_path) - 1);
-			ca_path[sizeof(ca_path) - 1] = '\0';
-			break;
+    while (n >= 0)
+    {
+        n = getopt_long(argc, (char ** const)argv, "Sjnuv:hsp:d:lC:K:A:P:mo", options, NULL);
+        if (n < 0)
+            continue;
+        switch (n)
+        {
+            case 'd':
+                lws_set_log_level(atoi(optarg), NULL);
+                break;
+            case 's': /* lax SSL, allow selfsigned, skip checking hostname */   //-----
+                use_ssl = LCCSCF_USE_SSL |
+                    LCCSCF_ALLOW_SELFSIGNED |
+                    LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK;
+                break;
+            case 'S': /* Strict SSL, no selfsigned, check server hostname */
+                use_ssl = LCCSCF_USE_SSL;
+                break;
+            case 'p':
+                port = atoi(optarg);
+                break;
+            case 'P':
+                pp_secs = atoi(optarg);
+                lwsl_notice("Setting pingpong interval to %d\n", pp_secs);
+                break;
+            case 'j':
+                justmirror = 1;
+                break;
+            case 'l':
+                longlived = 1;
+                break;
+            case 'v':
+                ietf_version = atoi(optarg);//13
+                break;
+            case 'u':
+                deny_deflate = 1;
+                break;
+            case 'm':
+                do_multi = 1;
+                break;
+            case 'o':
+                test_post = 1;
+                break;
+            case 'n':
+                flag_no_mirror_traffic = 1;
+                lwsl_notice("Disabled sending mirror data (for pingpong testing)\n");
+                break;
+            case 'C':
+                strncpy(cert_path, optarg, sizeof(cert_path) - 1);
+                cert_path[sizeof(cert_path) - 1] = '\0';
+                break;
+            case 'K':
+                strncpy(key_path, optarg, sizeof(key_path) - 1);
+                key_path[sizeof(key_path) - 1] = '\0';
+                break;
+            case 'A':
+                strncpy(ca_path, optarg, sizeof(ca_path) - 1);
+                ca_path[sizeof(ca_path) - 1] = '\0';
+                break;
 
 #if defined(LWS_OPENSSL_SUPPORT) && defined(LWS_HAVE_SSL_CTX_set1_param)
-		case 'R':
-			strncpy(crl_path, optarg, sizeof(crl_path) - 1);
-			crl_path[sizeof(crl_path) - 1] = '\0';
-			break;
+            case 'R':
+                strncpy(crl_path, optarg, sizeof(crl_path) - 1);
+                crl_path[sizeof(crl_path) - 1] = '\0';
+                break;
 #endif
-		case 'h':
-			usage();
-		}
-	}
+            case 'h':
+                usage();
+        }
+    }
 
-	if (optind >= argc)
-		usage();
+    if (optind >= argc)
+        usage();
 
-	ret = shm_init();
-	if(ret)
-		printf(RED "shm_init failed\n" NONE);
+    ret = shm_init();
+    if(ret)
+        printf(RED "shm_init failed\n" NONE);
 
-	list_h_pointer = create_linkedlist();
+    //list_h_pointer = create_linkedlist();
 
-	signal(SIGINT, sig_handler);
-	signal(SIGALRM, sig_handler);
+    INIT_LIST_HEAD(&list_xxx_head.list);  
 
-	memset(&i, 0, sizeof(i));
 
-	i.port = port;
-	if (lws_parse_uri((char *)argv[optind], &prot, &i.address, &i.port, &p))//---url
-		usage();
+    signal(SIGINT, sig_handler);
+    signal(SIGALRM, sig_handler);
 
-	/* add back the leading / on path */
-	path[0] = '/';
-	strncpy(path + 1, p, sizeof(path) - 2);
-	path[sizeof(path) - 1] = '\0';
-	printf("sws : %s,%s,line = %d,path = %s,prot = %s\n",__FILE__,__func__,__LINE__,path,prot);//好像是个管道 //  /svc/pipe   wss
-	i.path = path;//------------
+    memset(&i, 0, sizeof(i));
 
-	if (!strcmp(prot, "http") || !strcmp(prot, "ws"))//---ssl
-	{
-		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		use_ssl = 0;
-	}
-	if (!strcmp(prot, "https") || !strcmp(prot, "wss"))//---  这里了
-		if (!use_ssl)
-		{
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-			use_ssl = LCCSCF_USE_SSL;
-		}
-	/*
-	 * create the websockets context.  This tracks open connections and
-	 * knows how to route any traffic and which protocol version to use,
-	 * and if each connection is client or server side.
-	 *
-	 * For this client-only demo, we tell it to not listen on any port.
-	 */
+    i.port = port;
+    if (lws_parse_uri((char *)argv[optind], &prot, &i.address, &i.port, &p))//---url
+        usage();
 
-	info.port = CONTEXT_PORT_NO_LISTEN;
-	info.protocols = protocols;
-	info.gid = -1;
-	info.uid = -1;
-	info.ws_ping_pong_interval = pp_secs;
-	info.extensions = exts;
+    /* add back the leading / on path */
+    path[0] = '/';
+    strncpy(path + 1, p, sizeof(path) - 2);
+    path[sizeof(path) - 1] = '\0';
+    printf("sws : %s,%s,line = %d,path = %s,prot = %s\n",__FILE__,__func__,__LINE__,path,prot);//好像是个管道 //  /svc/pipe   wss
+    i.path = path;//------------
+
+    if (!strcmp(prot, "http") || !strcmp(prot, "ws"))//---ssl
+    {
+        printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+        use_ssl = 0;
+    }
+    if (!strcmp(prot, "https") || !strcmp(prot, "wss"))//---  这里了
+        if (!use_ssl)
+        {
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            use_ssl = LCCSCF_USE_SSL;
+        }
+    /*
+     * create the websockets context.  This tracks open connections and
+     * knows how to route any traffic and which protocol version to use,
+     * and if each connection is client or server side.
+     *
+     * For this client-only demo, we tell it to not listen on any port.
+     */
+
+    info.port = CONTEXT_PORT_NO_LISTEN;
+    info.protocols = protocols;
+    info.gid = -1;
+    info.uid = -1;
+    info.ws_ping_pong_interval = pp_secs;
+    info.extensions = exts;
 
 #if defined(LWS_OPENSSL_SUPPORT)
-	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-	info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
+    printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+    info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
 #endif
 
-	if (use_ssl)  //----ssl
-	{
-		/*
-		 * If the server wants us to present a valid SSL client certificate
-		 * then we can set it up here.
-		 */
+    if (use_ssl)  //----ssl
+    {
+        /*
+         * If the server wants us to present a valid SSL client certificate
+         * then we can set it up here.
+         */
 
-		if (cert_path[0])//---
-		{
-			info.client_ssl_cert_filepath = cert_path;//---
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		}
-		if (key_path[0])
-		{
-			info.client_ssl_private_key_filepath = key_path;
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		}
-		/*
-		 * A CA cert and CRL can be used to validate the cert send by the server
-		 */
-		if (ca_path[0])
-		{
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-			info.client_ssl_ca_filepath = ca_path;
-		}
+        if (cert_path[0])//---
+        {
+            info.client_ssl_cert_filepath = cert_path;//---
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+        }
+        if (key_path[0])
+        {
+            info.client_ssl_private_key_filepath = key_path;
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+        }
+        /*
+         * A CA cert and CRL can be used to validate the cert send by the server
+         */
+        if (ca_path[0])
+        {
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            info.client_ssl_ca_filepath = ca_path;
+        }
 
 #if defined(LWS_OPENSSL_SUPPORT) && defined(LWS_HAVE_SSL_CTX_set1_param)
-		else if (crl_path[0])
-			lwsl_notice("WARNING, providing a CRL requires a CA cert!\n");
+        else if (crl_path[0])
+            lwsl_notice("WARNING, providing a CRL requires a CA cert!\n");
 #endif
-	}
+    }
 
-	if (use_ssl & LCCSCF_USE_SSL)
-		lwsl_notice(" Using SSL\n");
-	else
-		lwsl_notice(" SSL disabled\n");
-	if (use_ssl & LCCSCF_ALLOW_SELFSIGNED)
-		lwsl_notice(" Selfsigned certs allowed\n");
-	else
-		lwsl_notice(" Cert must validate correctly (use -s to allow selfsigned)\n");
-	if (use_ssl & LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK)
-		lwsl_notice(" Skipping peer cert hostname check\n");
-	else
-		lwsl_notice(" Requiring peer cert hostname matches\n");
+    if (use_ssl & LCCSCF_USE_SSL)
+        lwsl_notice(" Using SSL\n");
+    else
+        lwsl_notice(" SSL disabled\n");
+    if (use_ssl & LCCSCF_ALLOW_SELFSIGNED)
+        lwsl_notice(" Selfsigned certs allowed\n");
+    else
+        lwsl_notice(" Cert must validate correctly (use -s to allow selfsigned)\n");
+    if (use_ssl & LCCSCF_SKIP_SERVER_CERT_HOSTNAME_CHECK)
+        lwsl_notice(" Skipping peer cert hostname check\n");
+    else
+        lwsl_notice(" Requiring peer cert hostname matches\n");
 
-	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-	context = lws_create_context(&info);  //这里面进去了 callback_dumb_increment
-	if (context == NULL)
-	{
-		fprintf(stderr, "Creating libwebsocket context failed\n");
-		return 1;
-	}
-	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-	i.context = context;
-	i.ssl_connection = use_ssl;//----
-	i.host = i.address;
-	i.origin = i.address;
-	i.ietf_version_or_minus_one = ietf_version;//-------
+    printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+    context = lws_create_context(&info);  //这里面进去了 callback_dumb_increment
+    if (context == NULL)
+    {
+        fprintf(stderr, "Creating libwebsocket context failed\n");
+        return 1;
+    }
+    printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+    i.context = context;
+    i.ssl_connection = use_ssl;//----
+    i.host = i.address;
+    i.origin = i.address;
+    i.ietf_version_or_minus_one = ietf_version;//-------
 
-	if (!strcmp(prot, "http") || !strcmp(prot, "https"))
-	{
-		lwsl_notice("using %s mode (non-ws)\n", prot);
-		if (test_post)
-		{
-			i.method = "POST";
-			lwsl_notice("POST mode\n");
-		}
-		else
-			i.method = "GET";
-		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		do_ws = 0;
-	}
-	else if (!strcmp(prot, "raw"))
-	{
-		i.method = "RAW";
-		i.protocol = "lws-test-raw-client";
-		lwsl_notice("using RAW mode connection\n");
-		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		do_ws = 0;
-	}
-	else
-		lwsl_notice("using %s mode (ws)\n", prot);
+    if (!strcmp(prot, "http") || !strcmp(prot, "https"))
+    {
+        lwsl_notice("using %s mode (non-ws)\n", prot);
+        if (test_post)
+        {
+            i.method = "POST";
+            lwsl_notice("POST mode\n");
+        }
+        else
+            i.method = "GET";
+        printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+        do_ws = 0;
+    }
+    else if (!strcmp(prot, "raw"))
+    {
+        i.method = "RAW";
+        i.protocol = "lws-test-raw-client";
+        lwsl_notice("using RAW mode connection\n");
+        printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+        do_ws = 0;
+    }
+    else
+        lwsl_notice("using %s mode (ws)\n", prot);
 
-	/*
-	 * sit there servicing the websocket context to handle incoming
-	 * packets, and drawing random circles on the mirror protocol websocket
-	 *
-	 * nothing happens until the client websocket connection is
-	 * asynchronously established... calling lws_client_connect() only
-	 * instantiates the connection logically, lws_service() progresses it
-	 * asynchronously.
-	 */
+    /*
+     * sit there servicing the websocket context to handle incoming
+     * packets, and drawing random circles on the mirror protocol websocket
+     *
+     * nothing happens until the client websocket connection is
+     * asynchronously established... calling lws_client_connect() only
+     * instantiates the connection logically, lws_service() progresses it
+     * asynchronously.
+     */
 
-	//
-
-
-	//i填充已经完毕
+    //
 
 
-	//lws_client_connect_via_info
-	if (do_multi)  //0
-	{
-		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		for (n = 0; n < ARRAY_SIZE(wsi_multi); n++)
-		{
-			if (!wsi_multi[n] && ratelimit_connects(&rl_multi[n], 2u))
-			{
-				lwsl_notice("dumb %d: connecting\n", n);
-				i.protocol = protocols[PROTOCOL_DUMB_INCREMENT].name;
-				i.pwsi = &wsi_multi[n];
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-				lws_client_connect_via_info(&i);
-			}
-		}
-	}
-	else
-	{
-		printf("sws : %s,%s,line = %d,do_ws = %d\n",__FILE__,__func__,__LINE__,do_ws);//1
+    //i填充已经完毕
 
-		if (do_ws)  // 1
-		{
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
-			if (!justmirror && !wsi_dumb && ratelimit_connects(&rl_dumb, 2u))   // return 0//-----------------------  //目前就这一个工作
-			{
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
-				lwsl_notice("dumb: connecting\n");
-				i.protocol = protocols[PROTOCOL_DUMB_INCREMENT].name;
-				i.pwsi = &wsi_dumb;
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 
-				lws_client_connect_via_info(&i);//  再循环中只执行一次
+    //lws_client_connect_via_info
+    if (do_multi)  //0
+    {
+        printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+        for (n = 0; n < ARRAY_SIZE(wsi_multi); n++)
+        {
+            if (!wsi_multi[n] && ratelimit_connects(&rl_multi[n], 2u))
+            {
+                lwsl_notice("dumb %d: connecting\n", n);
+                i.protocol = protocols[PROTOCOL_DUMB_INCREMENT].name;
+                i.pwsi = &wsi_multi[n];
+                printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+                lws_client_connect_via_info(&i);
+            }
+        }
+    }
+    else
+    {
+        printf("sws : %s,%s,line = %d,do_ws = %d\n",__FILE__,__func__,__LINE__,do_ws);//1
 
-				tool.wsi = wsi_dumb;
-				tool.context = context;
+        if (do_ws)  // 1
+        {
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
+            if (!justmirror && !wsi_dumb && ratelimit_connects(&rl_dumb, 2u))   // return 0//-----------------------  //目前就这一个工作
+            {
+                printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
+                lwsl_notice("dumb: connecting\n");
+                i.protocol = protocols[PROTOCOL_DUMB_INCREMENT].name;
+                i.pwsi = &wsi_dumb;
+                printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 
-			}
+                lws_client_connect_via_info(&i);//  再循环中只执行一次
+
+                tool.wsi = wsi_dumb;
+                tool.context = context;
+
+            }
 
 #if LWS_DEFINE
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
-			if (!wsi_mirror && ratelimit_connects(&rl_mirror, 2u))  //-----------------------------------------------
-			{
-				lwsl_notice("mirror: connecting\n");
-				i.protocol = protocols[PROTOCOL_LWS_MIRROR].name;
-				i.pwsi = &wsi_mirror;
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-				wsi_mirror = lws_client_connect_via_info(&i);////////再循环中只循环一次
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);//1
+            if (!wsi_mirror && ratelimit_connects(&rl_mirror, 2u))  //-----------------------------------------------
+            {
+                lwsl_notice("mirror: connecting\n");
+                i.protocol = protocols[PROTOCOL_LWS_MIRROR].name;
+                i.pwsi = &wsi_mirror;
+                printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+                wsi_mirror = lws_client_connect_via_info(&i);////////再循环中只循环一次
+                printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 
-			}
+            }
 #endif
-		}
-		else
-		{
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-			if (!wsi_dumb && ratelimit_connects(&rl_dumb, 2u))  //----------------------------------
-			{
-				lwsl_notice("http: connecting\n");
-				i.pwsi = &wsi_dumb;
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-				lws_client_connect_via_info(&i);
-			}
-		}
-	}
+        }
+        else
+        {
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            if (!wsi_dumb && ratelimit_connects(&rl_dumb, 2u))  //----------------------------------
+            {
+                lwsl_notice("http: connecting\n");
+                i.pwsi = &wsi_dumb;
+                printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+                lws_client_connect_via_info(&i);
+            }
+        }
+    }
 
-	if(0 != pthread_create(&pthid_insert,NULL,thread_insert,NULL)){
-		perror("pthid1");
-		return -1;
-	}
+    if(0 != pthread_create(&pthid_insert,NULL,thread_insert,NULL)){
+        perror("pthid1");
+        return -1;
+    }
 
-	if(0 != pthread_create(&pthid_del_linklist,NULL,thread_del_list,&tool)){
-		perror("pthid1");
-		return -1;
-	}
+    if(0 != pthread_create(&pthid_del_linklist,NULL,thread_del_list,&tool)){
+        perror("pthid1");
+        return -1;
+    }
 
-	m = 0;
-	while (!force_exit)  //会在ctrl + c的时候 force_exit 变为 1 ,条件不满足
-	{
-		count ++;
+    m = 0;
+    while (!force_exit)  //会在ctrl + c的时候 force_exit 变为 1 ,条件不满足
+    {
+        count ++;
 
-		printf("sws : %s,%s,line = %d-------------------------------------------%d-----lws_service begin\n",__FILE__,__func__,__LINE__,count);//1
-		lws_service(context, 500);//在循环中执行n次
-		printf("sws : %s,%s,line = %d-------------------------------------------%d-----lws_service end\n",__FILE__,__func__,__LINE__,count);//1
+        printf("sws : %s,%s,line = %d-------------------------------------------%d-----lws_service begin\n",__FILE__,__func__,__LINE__,count);//1
+        lws_service(context, 500);//在循环中执行n次
+        printf("sws : %s,%s,line = %d-------------------------------------------%d-----lws_service end\n",__FILE__,__func__,__LINE__,count);//1
 
-		if (do_multi)
-		{
-			printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-			m++;
-			if (m == 10)
-			{
-				m = 0;
-				lwsl_notice("doing lws_callback_on_writable_all_protocol\n");
-				lws_callback_on_writable_all_protocol(context, &protocols[PROTOCOL_DUMB_INCREMENT]);
-				printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-			}
-		}
-		sleep(2);
-	}
-	lwsl_err("Exiting\n");
-	lws_context_destroy(context);//这个里面调用了一次  	PROTOCOL_DUMB_INCREMENT               //context 里面 记录了这些东西
+        if (do_multi)
+        {
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            m++;
+            if (m == 10)
+            {
+                m = 0;
+                lwsl_notice("doing lws_callback_on_writable_all_protocol\n");
+                lws_callback_on_writable_all_protocol(context, &protocols[PROTOCOL_DUMB_INCREMENT]);
+                printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            }
+        }
+        sleep(2);
+    }
+    lwsl_err("Exiting\n");
+    lws_context_destroy(context);//这个里面调用了一次  	PROTOCOL_DUMB_INCREMENT               //context 里面 记录了这些东西
 
-	return 0;
+    return 0;
 }
