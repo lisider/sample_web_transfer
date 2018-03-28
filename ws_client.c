@@ -36,6 +36,7 @@
  * 宏定义区
  **************************************************************************************/
 
+#define SERVER_DEADLINE 5
 
 #define LWS_DEFINE 0
 
@@ -118,6 +119,7 @@ typedef struct  _list_xxx_t{
 
 
 list_xxx_t list_xxx_head;
+list_xxx_t list_xxx_head2;
 
 /**************************************************************************************
  * 函数定义区
@@ -209,6 +211,11 @@ void xun_uint_to_char(unsigned int a ,unsigned char *tab,int len)
 }
 
 void sig_handler(int arg){
+    int fifo_fd;
+                list_xxx_t *tmp_xxx_node;
+                struct list_head *pos,*n;
+    char buf[32];
+    int ack_state = 5;
 
 	switch(arg){
 
@@ -219,8 +226,6 @@ void sig_handler(int arg){
 		//delete_linklist_all(list_h_pointer);
 
 
-                struct list_head *pos,*n;
-                list_xxx_t *tmp_xxx_node;
 
                 list_for_each_safe(pos,n,&list_xxx_head.list){  		
                     tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
@@ -244,9 +249,39 @@ void sig_handler(int arg){
                 break;
         case SIGALRM:
 
+                printf(GREEN "i am going to Traversing chain list\n" NONE);
+
+                list_for_each_safe(pos,n,&list_xxx_head2.list){  		
+                    tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+                    printf(GREEN "del with one subtraction , left %d\n" NONE,tmp_xxx_node->data.msg_info.dead_line-1);
+                    if(--tmp_xxx_node->data.msg_info.dead_line == 0){//对链表中的数据进行判断,如果满足条件就删节点
+                        list_del(pos); // 注意,删除链表,是删除的list_head,还需要删除 外层的数据 ,删除一个节点之后,并没有破坏这个节点和外围数据的位置关系
+
+                        fifo_fd = open(tmp_xxx_node->data.msg_info.fifo_path,O_RDWR);
+                        if(0 > fifo_fd){
+                            perror("open");
+                        }
+
+                        bzero(buf,sizeof(buf));
+                        buf[0] = RA;
+                       // snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R2]); //KEY_0 是 用于 验证 2.R的
+                        buf[sizeof(buf)-1] = ack_state;
+                        printf(RED "send ack  %d.R  to pid :%d because of dead_line",buf[0],tmp_xxx_node->data.msg_info.pid);
+
+
+                        // 2. 写
+                        write(fifo_fd,buf,sizeof(buf));
+                        kill(tmp_xxx_node->data.msg_info.pid,SIGUSR1);
+                        printf("   ...send ack %d.R DONE\n" NONE,buf[0]);
+                        close(fifo_fd);
+
+                        free(tmp_xxx_node);//释放数据
+                        printf("a node has removed from the doublelist  list_xxx_head2 because of dead_line ...\n");
+                    }
+                }
 
                 //循环链表,并删除剩余=0 的
-                printf(GREEN "i am going to Traversing chain list\n" NONE);
+                alarm(1);
 
                 break;
 
@@ -323,353 +358,353 @@ callback_dumb_increment(struct lws *wsi, enum lws_callback_reasons reason,
             // pthread_cond_signal(&cond_write);
             //printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
             //获得锁
-		//阻塞
-		//     pthread_cond_wait(&cond_main,&mutex);
-		printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
-		//得到信号,解锁
+            //阻塞
+            //     pthread_cond_wait(&cond_main,&mutex);
+            printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+            //得到信号,解锁
 
-		// generate_cjson(&cjson_to_send);
-		//websocket_write_back(wsi,cjson_to_send,-1);
+            // generate_cjson(&cjson_to_send);
+            //websocket_write_back(wsi,cjson_to_send,-1);
 
 
 
-		//while(1);
-		//        websocket_write_back(wsi,p,size);
-		lwsl_info("dumb: LWS_CALLBACK_CLIENT_ESTABLISHED\n");
-		break;
+            //while(1);
+            //        websocket_write_back(wsi,p,size);
+            lwsl_info("dumb: LWS_CALLBACK_CLIENT_ESTABLISHED\n");
+            break;
 
-	case LWS_CALLBACK_CLOSED:
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLOSED \n",__FILE__,__func__,__LINE__);
-		lwsl_notice("dumb: LWS_CALLBACK_CLOSED\n");
-		connection_flag = 0;
-		wsi_dumb = NULL;
-		break;
+        case LWS_CALLBACK_CLOSED:
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_CLOSED \n",__FILE__,__func__,__LINE__);
+            lwsl_notice("dumb: LWS_CALLBACK_CLOSED\n");
+            connection_flag = 0;
+            wsi_dumb = NULL;
+            break;
 
-	case LWS_CALLBACK_CLIENT_RECEIVE:
+        case LWS_CALLBACK_CLIENT_RECEIVE:
 
-		// 3. 得到ack
+            // 3. 得到ack
 
-		// 4. 3.R
-		// 5. 得到消息
-		// 6. 4.R
+            // 4. 3.R
+            // 5. 得到消息
+            // 6. 4.R
 
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_RECEIVE \n",__FILE__,__func__,__LINE__);
-		((char *)in)[len] = '\0';
-		lwsl_info("rx :%d  .%s.\n", (int)len, (char *)in);
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_RECEIVE \n",__FILE__,__func__,__LINE__);
+            ((char *)in)[len] = '\0';
+            lwsl_info("rx :%d  .%s.\n", (int)len, (char *)in);
 
-		if(pkt_send_format == LWS_WRITE_TEXT){
-			strcat(buf_receve,(char *)in);
-			if((int)len < 512)
-			{
+            if(pkt_send_format == LWS_WRITE_TEXT){
+                strcat(buf_receve,(char *)in);
+                if((int)len < 512)
+                {
 
-				printf("one time recvive all :\n%s\n",buf_receve);
-			}
+                    printf("one time recvive all :\n%s\n",buf_receve);
+                }
 
-			json = cJSON_Parse(buf_receve);
-			if (!json) {
-				printf("Error before: [%s]\n",cJSON_GetErrorPtr());
-			}
+                json = cJSON_Parse(buf_receve);
+                if (!json) {
+                    printf("Error before: [%s]\n",cJSON_GetErrorPtr());
+                }
 
 
-			out=cJSON_Print(json);
+                out=cJSON_Print(json);
 
-			printf("%s\n",out);
+                printf("%s\n",out);
 
-			//验证是否是正常的包
-			item=cJSON_GetObjectItem(json,"RC"); 
-			if(item->valueint == 1){
+                //验证是否是正常的包
+                item=cJSON_GetObjectItem(json,"RC"); 
+                if(item->valueint == 1){
 
-				item=cJSON_GetObjectItem(json,"CID"); 
+                    item=cJSON_GetObjectItem(json,"CID"); 
 
-				if(item->valueint != cid_send + 1){
-					printf("recv a packet ,but wrong CID ,send CID is  %d,rece CID is %d",cid_send,item->valueint);
-					exit(24);
-				}
-			}else
-			{
-				printf("rece a packet ,but wrong RC :%d",item->valueint);
-				exit(32);
-			}
+                    if(item->valueint != cid_send + 1){
+                        printf("recv a packet ,but wrong CID ,send CID is  %d,rece CID is %d",cid_send,item->valueint);
+                        exit(24);
+                    }
+                }else
+                {
+                    printf("rece a packet ,but wrong RC :%d",item->valueint);
+                    exit(32);
+                }
 
-			//从包中获取 数据 WatchEID WatchSID WatchFamiGID
+                //从包中获取 数据 WatchEID WatchSID WatchFamiGID
 
 
-			bzero(WatchSID,sizeof(WatchSID));
-			bzero(WatchEID,sizeof(WatchEID));
-			bzero(WatchFamiGID,sizeof(WatchFamiGID));
-			bzero(GMT,sizeof(GMT));
+                bzero(WatchSID,sizeof(WatchSID));
+                bzero(WatchEID,sizeof(WatchEID));
+                bzero(WatchFamiGID,sizeof(WatchFamiGID));
+                bzero(GMT,sizeof(GMT));
 
 
-			item=cJSON_GetObjectItem(json,"SID");
+                item=cJSON_GetObjectItem(json,"SID");
 
-			memcpy(WatchSID,item->valuestring,32);
+                memcpy(WatchSID,item->valuestring,32);
 
-			printf("WatchSID : %s\n",WatchSID);
+                printf("WatchSID : %s\n",WatchSID);
 
 
-			item=cJSON_GetObjectItem(json,"PL");
+                item=cJSON_GetObjectItem(json,"PL");
 
-			item2=cJSON_GetObjectItem(item,"EID");
+                item2=cJSON_GetObjectItem(item,"EID");
 
-			memcpy(WatchEID,item2->valuestring,32);
+                memcpy(WatchEID,item2->valuestring,32);
 
-			printf("WatchEID : %s\n",WatchEID);
+                printf("WatchEID : %s\n",WatchEID);
 
 
 
-			item2=cJSON_GetObjectItem(item,"GMT");
+                item2=cJSON_GetObjectItem(item,"GMT");
 
-			memcpy(GMT,item2->valuestring,17);
+                memcpy(GMT,item2->valuestring,17);
 
-			printf("GMT : %s\n",GMT);
+                printf("GMT : %s\n",GMT);
 
 
-			item2=cJSON_GetObjectItem(item,"GID");
-			array_count = cJSON_GetArraySize(item2);
-			item3=cJSON_GetArrayItem(item2,0);
-			//		printf("%s\n",cJSON_Print(item3));
-
-			memcpy(WatchFamiGID,item3->valuestring,32);
-			printf("WatchFamiGID : %s\n",WatchFamiGID);
-
-			packet_come_flag = 1;
-
-
-
-			//pthread_rwlock_wrlock(&(shms->lock));
-			//fill in the buff_to_recv
-			// 2. 设置 可读 标志
-			//shms->shm_state = READABLE;
-
-			//pthread_rwlock_unlock(&(shms->lock));
-
-
-
-
-			printf("\nthe  packet above  is ack pakcet\n");
-		}else if(pkt_send_format == LWS_WRITE_BINARY){
-			strcat(buf_receve,(char *)in);
-			if((int)len < 512)
-			{
-				printf("one time recvive all :\n%s\n",buf_receve);
-			}
-
-			if(buf_receve[0] == 0xff && buf_receve[1] == 0xff){
-				printf("recv BINARY pkt , but wrong ack\n");
-			}else{
-				printf("recv BINARY pkt , right ack\n");
-			}
-
-			packet_come_flag = 1;
-			printf("\nthe  packet above  is ack pakcet\n");
-		}else{
-			printf("wrong \n");
-			exit(0);
-		}
-
-
-
-
-		break;
-
-		/* because we are protocols[0] ... */
-
-	case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_CONNECTION_ERROR\n",__FILE__,__func__,__LINE__);
-		if (wsi == wsi_dumb)
-		{
-			which = "dumb";
-			wsi_dumb = NULL;
-		}
-		if (wsi == wsi_mirror)
-		{
-			which = "mirror";
-			wsi_mirror = NULL;
-		}
-
-		for (n = 0; n < ARRAY_SIZE(wsi_multi); n++)
-			if (wsi == wsi_multi[n])
-			{
-				sprintf(which_wsi, "multi %d", n);
-				which = which_wsi;
-				wsi_multi[n] = NULL;
-			}
-
-		lwsl_err("CLIENT_CONNECTION_ERROR: %s: %s\n", which,
-				in ? (char *)in : "(null)");
-		break;
-
-	case LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED://--------------------------------------------第一次回调的状态,第二次回调的状态
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED\n",__FILE__,__func__,__LINE__);
-		if ((strcmp((const char *)in, "deflate-stream") == 0) && deny_deflate)
-		{
-			lwsl_notice("denied deflate-stream extension\n");
-			return 1;
-		}
-		if ((strcmp((const char *)in, "x-webkit-deflate-frame") == 0))
-			return 1;
-		if ((strcmp((const char *)in, "deflate-frame") == 0))
-			return 1;
-		break;
-
-	case LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP:
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP\n",__FILE__,__func__,__LINE__);
-		lwsl_notice("lws_http_client_http_response %d\n",
-				lws_http_client_http_response(wsi));
-		break;
-
-		/* chunked content */
-	case LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ:
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ\n",__FILE__,__func__,__LINE__);
-		lwsl_notice("LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ: %ld\n",
-				(long)len);
-		show_http_content((char *)in, len);
-		break;
-
-		/* unchunked content */
-	case LWS_CALLBACK_RECEIVE_CLIENT_HTTP:
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_RECEIVE_CLIENT_HTTP\n",__FILE__,__func__,__LINE__);
-		{
-			char buffer[1024 + LWS_PRE];
-			char *px = buffer + LWS_PRE;
-			int lenx = sizeof(buffer) - LWS_PRE;
-
-			/*
-			 * Often you need to flow control this by something
-			 * else being writable.  In that case call the api
-			 * to get a callback when writable here, and do the
-			 * pending client read in the writeable callback of
-			 * the output.
-			 *
-			 * In the case of chunked content, this will call back
-			 * LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ once per
-			 * chunk or partial chunk in the buffer, and report
-			 * zero length back here.
-			 */
-			if (lws_http_client_read(wsi, &px, &lenx) < 0)
-				return -1;
-		}
-		break;
-
-	case LWS_CALLBACK_CLIENT_WRITEABLE:
-
-		//pthread_cond_signal(&cond_write);
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_WRITEABLE\n",__FILE__,__func__,__LINE__);
-		lwsl_info("Client wsi %p writable\n", wsi);
-
-		printf("state LWS_CALLBACK_CLIENT_WRITEABLE\n");
-		//	while(1);
-		break;
-
-	case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:  //---------------------------------------第三次回调的状态
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER\n",__FILE__,__func__,__LINE__);
-		if (test_post)
-		{
-			unsigned char **p = (unsigned char **)in, *end = (*p) + len;
-
-			if (lws_add_http_header_by_token(wsi,
-						WSI_TOKEN_HTTP_CONTENT_LENGTH,
-						(unsigned char *)"29", 2, p, end))
-				return -1;
-			if (lws_add_http_header_by_token(wsi,
-						WSI_TOKEN_HTTP_CONTENT_TYPE,
-						(unsigned char *)"application/x-www-form-urlencoded", 33, p, end))
-				return -1;
-
-			/* inform lws we have http body to send */
-			lws_client_http_body_pending(wsi, 1);
-			//		lws_callback_on_writable(wsi);
-		}
-		break;
-
-	case LWS_CALLBACK_CLIENT_HTTP_WRITEABLE:
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_HTTP_WRITEABLE\n",__FILE__,__func__,__LINE__);
-		strcpy(buf + LWS_PRE, "text=hello&send=Send+the+form");
-		n = lws_write(wsi, (unsigned char *)&buf[LWS_PRE], strlen(&buf[LWS_PRE]), LWS_WRITE_HTTP);
-		if (n < 0)
-			return -1;
-		/* we only had one thing to send, so inform lws we are done
-		 * if we had more to send, call lws_callback_on_writable(wsi);
-		 * and just return 0 from callback.  On having sent the last
-		 * part, call the below api instead.*/
-		lws_client_http_body_pending(wsi, 0);
-		break;
-
-	case LWS_CALLBACK_COMPLETED_CLIENT_HTTP:
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_COMPLETED_CLIENT_HTTP\n",__FILE__,__func__,__LINE__);
-		wsi_dumb = NULL;
-		force_exit = 1;
-		break;
+                item2=cJSON_GetObjectItem(item,"GID");
+                array_count = cJSON_GetArraySize(item2);
+                item3=cJSON_GetArrayItem(item2,0);
+                //		printf("%s\n",cJSON_Print(item3));
+
+                memcpy(WatchFamiGID,item3->valuestring,32);
+                printf("WatchFamiGID : %s\n",WatchFamiGID);
+
+                packet_come_flag = 1;
+
+
+
+                //pthread_rwlock_wrlock(&(shms->lock));
+                //fill in the buff_to_recv
+                // 2. 设置 可读 标志
+                //shms->shm_state = READABLE;
+
+                //pthread_rwlock_unlock(&(shms->lock));
+
+
+
+
+                printf("\nthe  packet above  is ack pakcet\n");
+            }else if(pkt_send_format == LWS_WRITE_BINARY){
+                strcat(buf_receve,(char *)in);
+                if((int)len < 512)
+                {
+                    printf("one time recvive all :\n%s\n",buf_receve);
+                }
+
+                if(buf_receve[0] == 0xff && buf_receve[1] == 0xff){
+                    printf("recv BINARY pkt , but wrong ack\n");
+                }else{
+                    printf("recv BINARY pkt , right ack\n");
+                }
+
+                packet_come_flag = 1;
+                printf("\nthe  packet above  is ack pakcet\n");
+            }else{
+                printf("wrong \n");
+                exit(0);
+            }
+
+
+
+
+            break;
+
+            /* because we are protocols[0] ... */
+
+        case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_CONNECTION_ERROR\n",__FILE__,__func__,__LINE__);
+            if (wsi == wsi_dumb)
+            {
+                which = "dumb";
+                wsi_dumb = NULL;
+            }
+            if (wsi == wsi_mirror)
+            {
+                which = "mirror";
+                wsi_mirror = NULL;
+            }
+
+            for (n = 0; n < ARRAY_SIZE(wsi_multi); n++)
+                if (wsi == wsi_multi[n])
+                {
+                    sprintf(which_wsi, "multi %d", n);
+                    which = which_wsi;
+                    wsi_multi[n] = NULL;
+                }
+
+            lwsl_err("CLIENT_CONNECTION_ERROR: %s: %s\n", which,
+                    in ? (char *)in : "(null)");
+            break;
+
+        case LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED://--------------------------------------------第一次回调的状态,第二次回调的状态
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED\n",__FILE__,__func__,__LINE__);
+            if ((strcmp((const char *)in, "deflate-stream") == 0) && deny_deflate)
+            {
+                lwsl_notice("denied deflate-stream extension\n");
+                return 1;
+            }
+            if ((strcmp((const char *)in, "x-webkit-deflate-frame") == 0))
+                return 1;
+            if ((strcmp((const char *)in, "deflate-frame") == 0))
+                return 1;
+            break;
+
+        case LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP:
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP\n",__FILE__,__func__,__LINE__);
+            lwsl_notice("lws_http_client_http_response %d\n",
+                    lws_http_client_http_response(wsi));
+            break;
+
+            /* chunked content */
+        case LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ:
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ\n",__FILE__,__func__,__LINE__);
+            lwsl_notice("LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ: %ld\n",
+                    (long)len);
+            show_http_content((char *)in, len);
+            break;
+
+            /* unchunked content */
+        case LWS_CALLBACK_RECEIVE_CLIENT_HTTP:
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_RECEIVE_CLIENT_HTTP\n",__FILE__,__func__,__LINE__);
+            {
+                char buffer[1024 + LWS_PRE];
+                char *px = buffer + LWS_PRE;
+                int lenx = sizeof(buffer) - LWS_PRE;
+
+                /*
+                 * Often you need to flow control this by something
+                 * else being writable.  In that case call the api
+                 * to get a callback when writable here, and do the
+                 * pending client read in the writeable callback of
+                 * the output.
+                 *
+                 * In the case of chunked content, this will call back
+                 * LWS_CALLBACK_RECEIVE_CLIENT_HTTP_READ once per
+                 * chunk or partial chunk in the buffer, and report
+                 * zero length back here.
+                 */
+                if (lws_http_client_read(wsi, &px, &lenx) < 0)
+                    return -1;
+            }
+            break;
+
+        case LWS_CALLBACK_CLIENT_WRITEABLE:
+
+            //pthread_cond_signal(&cond_write);
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_WRITEABLE\n",__FILE__,__func__,__LINE__);
+            lwsl_info("Client wsi %p writable\n", wsi);
+
+            printf("state LWS_CALLBACK_CLIENT_WRITEABLE\n");
+            //	while(1);
+            break;
+
+        case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:  //---------------------------------------第三次回调的状态
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER\n",__FILE__,__func__,__LINE__);
+            if (test_post)
+            {
+                unsigned char **p = (unsigned char **)in, *end = (*p) + len;
+
+                if (lws_add_http_header_by_token(wsi,
+                            WSI_TOKEN_HTTP_CONTENT_LENGTH,
+                            (unsigned char *)"29", 2, p, end))
+                    return -1;
+                if (lws_add_http_header_by_token(wsi,
+                            WSI_TOKEN_HTTP_CONTENT_TYPE,
+                            (unsigned char *)"application/x-www-form-urlencoded", 33, p, end))
+                    return -1;
+
+                /* inform lws we have http body to send */
+                lws_client_http_body_pending(wsi, 1);
+                //		lws_callback_on_writable(wsi);
+            }
+            break;
+
+        case LWS_CALLBACK_CLIENT_HTTP_WRITEABLE:
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_CLIENT_HTTP_WRITEABLE\n",__FILE__,__func__,__LINE__);
+            strcpy(buf + LWS_PRE, "text=hello&send=Send+the+form");
+            n = lws_write(wsi, (unsigned char *)&buf[LWS_PRE], strlen(&buf[LWS_PRE]), LWS_WRITE_HTTP);
+            if (n < 0)
+                return -1;
+            /* we only had one thing to send, so inform lws we are done
+             * if we had more to send, call lws_callback_on_writable(wsi);
+             * and just return 0 from callback.  On having sent the last
+             * part, call the below api instead.*/
+            lws_client_http_body_pending(wsi, 0);
+            break;
+
+        case LWS_CALLBACK_COMPLETED_CLIENT_HTTP:
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_COMPLETED_CLIENT_HTTP\n",__FILE__,__func__,__LINE__);
+            wsi_dumb = NULL;
+            force_exit = 1;
+            break;
 
 #if defined(LWS_OPENSSL_SUPPORT) && defined(LWS_HAVE_SSL_CTX_set1_param) && !defined(LWS_WITH_MBEDTLS)
-	case LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS:
-		printf("sws : %s,%s,line = %d LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS\n",__FILE__,__func__,__LINE__);
-		if (crl_path[0])
-		{
-			/* Enable CRL checking of the server certificate */
-			X509_VERIFY_PARAM *param = X509_VERIFY_PARAM_new();
-			X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_CRL_CHECK);
-			SSL_CTX_set1_param((SSL_CTX*)user, param);
-			X509_STORE *store = SSL_CTX_get_cert_store((SSL_CTX*)user);
-			X509_LOOKUP *lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file());
-			int n = X509_load_cert_crl_file(lookup, crl_path, X509_FILETYPE_PEM);
-			X509_VERIFY_PARAM_free(param);
-			if (n != 1)
-			{
-				char errbuf[256];
-				n = ERR_get_error();
-				lwsl_err("LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS: SSL error: %s (%d)\n", ERR_error_string(n, errbuf), n);
-				return 1;
-			}
-		}
-		break;
+        case LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS:
+            printf("sws : %s,%s,line = %d LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS\n",__FILE__,__func__,__LINE__);
+            if (crl_path[0])
+            {
+                /* Enable CRL checking of the server certificate */
+                X509_VERIFY_PARAM *param = X509_VERIFY_PARAM_new();
+                X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_CRL_CHECK);
+                SSL_CTX_set1_param((SSL_CTX*)user, param);
+                X509_STORE *store = SSL_CTX_get_cert_store((SSL_CTX*)user);
+                X509_LOOKUP *lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file());
+                int n = X509_load_cert_crl_file(lookup, crl_path, X509_FILETYPE_PEM);
+                X509_VERIFY_PARAM_free(param);
+                if (n != 1)
+                {
+                    char errbuf[256];
+                    n = ERR_get_error();
+                    lwsl_err("LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS: SSL error: %s (%d)\n", ERR_error_string(n, errbuf), n);
+                    return 1;
+                }
+            }
+            break;
 #endif
 
-	default:
-		break;
-	}
+        default:
+            break;
+    }
 
-	return 0;
+    return 0;
 }
 
 
 static const struct lws_protocols protocols[] =
 {
-	{
-		"dumb-increment-protocol",
-		callback_dumb_increment,
-		0,
-		512,
-	},
+    {
+        "dumb-increment-protocol",
+        callback_dumb_increment,
+        0,
+        512,
+    },
 #if 0
-	{
-		"lws-mirror-protocol",
-		callback_lws_mirror,
-		0,
-		128,
-	}, {
-		"lws-test-raw-client",
-		callback_test_raw_client,
-		0,
-		128
-	},
+    {
+        "lws-mirror-protocol",
+        callback_lws_mirror,
+        0,
+        128,
+    }, {
+        "lws-test-raw-client",
+        callback_test_raw_client,
+        0,
+        128
+    },
 #endif
-	{ NULL, NULL, 0, 0 } /* end */
+    { NULL, NULL, 0, 0 } /* end */
 };
 
 static const struct lws_extension exts[] =
 {
-	{
-		"permessage-deflate",
-		lws_extension_callback_pm_deflate,
-		"permessage-deflate; client_no_context_takeover"
-	},
-	{
-		"deflate-frame",
-		lws_extension_callback_pm_deflate,
-		"deflate_frame"
-	},
-	{ NULL, NULL, NULL /* terminator */ }
+    {
+        "permessage-deflate",
+        lws_extension_callback_pm_deflate,
+        "permessage-deflate; client_no_context_takeover"
+    },
+    {
+        "deflate-frame",
+        lws_extension_callback_pm_deflate,
+        "deflate_frame"
+    },
+    { NULL, NULL, NULL /* terminator */ }
 };
 
 
@@ -677,97 +712,97 @@ static const struct lws_extension exts[] =
 
 static int shm_init(void){
 
-	key_t key;
+    key_t key;
 
-	int access(const char *filename, int mode);
-	if(access(SHM_PATH,F_OK) != 0)
-	{
-		printf("mkdir SHM_PATH\n");
-		system("mkdir " SHM_PATH);
-	}
+    int access(const char *filename, int mode);
+    if(access(SHM_PATH,F_OK) != 0)
+    {
+        printf("mkdir SHM_PATH\n");
+        system("mkdir " SHM_PATH);
+    }
 
-	key = ftok(SHM_PATH,'r');//获取key
-	if(-1 == key){
-		perror("ftok");
-		printf(YELLOW "you can try to solve it by mkdir %s\n" NONE,SHM_PATH);
-		return -1; 
-	}   
+    key = ftok(SHM_PATH,'r');//获取key
+    if(-1 == key){
+        perror("ftok");
+        printf(YELLOW "you can try to solve it by mkdir %s\n" NONE,SHM_PATH);
+        return -1; 
+    }   
 
-	shmid = shmget(key,sizeof(struct shm),IPC_CREAT|IPC_EXCL|0666);//共享内存的获取
-	if(-1 == shmid){
-		if(errno == EEXIST){
-			shmid = shmget(key,sizeof(struct shm),0);
-		}else{
-			perror("shmget");
-			return -1; 
-		}   
-	}   
+    shmid = shmget(key,sizeof(struct shm),IPC_CREAT|IPC_EXCL|0666);//共享内存的获取
+    if(-1 == shmid){
+        if(errno == EEXIST){
+            shmid = shmget(key,sizeof(struct shm),0);
+        }else{
+            perror("shmget");
+            return -1; 
+        }   
+    }   
 
-	shms = shmat(shmid,NULL,0);//共享内存的映射
-	if(-1 == *(int *)shms){
-		perror("shmat");
-		return -1; 
-	}
+    shms = shmat(shmid,NULL,0);//共享内存的映射
+    if(-1 == *(int *)shms){
+        perror("shmat");
+        return -1; 
+    }
 
-	bzero(shms,sizeof(struct shm)); //清 0 共享内存
+    bzero(shms,sizeof(struct shm)); //清 0 共享内存
 
-	//下面为初始化 共享内存中的数据
-        init_status(&(shms->read_write_state));
-        shms->unwriteable_times_send=0;
-        //shms->unwriteable_times_recv=0;
-	sem_init((sem_t *)&(shms->sem), 0, 1); 
-	//shms->shm_state = NUMBER_OF_MEMBERS; //这个状态不用来进行逻辑判断
+    //下面为初始化 共享内存中的数据
+    init_status(&(shms->read_write_state));
+    shms->unwriteable_times_send=0;
+    //shms->unwriteable_times_recv=0;
+    sem_init((sem_t *)&(shms->sem), 0, 1); 
+    //shms->shm_state = NUMBER_OF_MEMBERS; //这个状态不用来进行逻辑判断
 
-	return 0;
+    return 0;
 }
 
 
 
 static struct option options[] =
 {
-	{ "help",	no_argument,		NULL, 'h' },
-	{ "debug",      required_argument,      NULL, 'd' },
-	{ "port",	required_argument,	NULL, 'p' },
-	{ "ssl",	no_argument,		NULL, 's' },
-	{ "strict-ssl",	no_argument,		NULL, 'S' },
-	{ "version",	required_argument,	NULL, 'v' },
-	{ "undeflated",	no_argument,		NULL, 'u' },
-	{ "multi-test",	no_argument,		NULL, 'm' },
-	{ "nomirror",	no_argument,		NULL, 'n' },
-	{ "justmirror",	no_argument,		NULL, 'j' },
-	{ "longlived",	no_argument,		NULL, 'l' },
-	{ "post",	no_argument,		NULL, 'o' },
-	{ "pingpong-secs", required_argument,	NULL, 'P' },
-	{ "ssl-cert",  required_argument,	NULL, 'C' },
-	{ "ssl-key",  required_argument,	NULL, 'K' },
-	{ "ssl-ca",  required_argument,		NULL, 'A' },
+    { "help",	no_argument,		NULL, 'h' },
+    { "debug",      required_argument,      NULL, 'd' },
+    { "port",	required_argument,	NULL, 'p' },
+    { "ssl",	no_argument,		NULL, 's' },
+    { "strict-ssl",	no_argument,		NULL, 'S' },
+    { "version",	required_argument,	NULL, 'v' },
+    { "undeflated",	no_argument,		NULL, 'u' },
+    { "multi-test",	no_argument,		NULL, 'm' },
+    { "nomirror",	no_argument,		NULL, 'n' },
+    { "justmirror",	no_argument,		NULL, 'j' },
+    { "longlived",	no_argument,		NULL, 'l' },
+    { "post",	no_argument,		NULL, 'o' },
+    { "pingpong-secs", required_argument,	NULL, 'P' },
+    { "ssl-cert",  required_argument,	NULL, 'C' },
+    { "ssl-key",  required_argument,	NULL, 'K' },
+    { "ssl-ca",  required_argument,		NULL, 'A' },
 #if defined(LWS_OPENSSL_SUPPORT) && defined(LWS_HAVE_SSL_CTX_set1_param)
-	{ "ssl-crl",  required_argument,		NULL, 'R' },
+    { "ssl-crl",  required_argument,		NULL, 'R' },
 #endif
-	{ NULL, 0, 0, 0 }
+    { NULL, 0, 0, 0 }
 };
 
 static int ratelimit_connects(unsigned int *last, unsigned int secs)
 {
-	struct timeval tv;
+    struct timeval tv;
 
-	gettimeofday(&tv, NULL);
-	if (tv.tv_sec - (*last) < secs)
-	{
-		return 0;
-	}
-	*last = tv.tv_sec;
+    gettimeofday(&tv, NULL);
+    if (tv.tv_sec - (*last) < secs)
+    {
+        return 0;
+    }
+    *last = tv.tv_sec;
 
-	return 1;
+    return 1;
 }
 
 
 void usage(void){
-	fprintf(stderr, "Usage: libwebsockets-test-client "
-			"<server address> [--port=<p>] "
-			"[--ssl] [-k] [-v <ver>] "
-			"[-d <log bitfield>] [-l]\n");
-	exit(0);
+    fprintf(stderr, "Usage: libwebsockets-test-client "
+            "<server address> [--port=<p>] "
+            "[--ssl] [-k] [-v <ver>] "
+            "[-d <log bitfield>] [-l]\n");
+    exit(0);
 }
 
 
@@ -779,7 +814,7 @@ void usage(void){
 
 /*
  *功能 : 按照顺序 
- 		1. 读取共享内存 中的 东西
+ 1. 读取共享内存 中的 东西
  * 		2. 插入链表中
  * 		3. 发送 1.R
  *
@@ -790,92 +825,93 @@ static void * thread_insert(void *arg){
     char ack_state = 1;
 
     list_xxx_t *tmp_xxx_node;
-	int fifo_fd = -1;
-	char buf[32];
-	bzero(buf,sizeof(buf));
+    int fifo_fd = -1;
+    char buf[32];
+    bzero(buf,sizeof(buf));
 
-	while(1){
-		usleep(1000*1000); //需要被其他机制 替代
-		sem_wait((sem_t *)&(shms->sem));
+    while(1){
+        usleep(1000*1000); //需要被其他机制 替代
+        sem_wait((sem_t *)&(shms->sem));
 
-		if(!is_writeable_send(shms->read_write_state)){ //普通进程 已经写入了
+        if(!is_writeable_send(shms->read_write_state)){ //普通进程 已经写入了
 
-			// 1. 插入 前的判断 //TODO
-			//对 msginfo 中的数据进行分析
-			//将 node  插入 链表 根据 msginfo 的内容进行怎么插入
-                        //
-                        // 1 申请内存
-                        tmp_xxx_node = (list_xxx_t *)malloc(sizeof(list_xxx_t));
+            // 1. 插入 前的判断 //TODO
+            //对 msginfo 中的数据进行分析
+            //将 node  插入 链表 根据 msginfo 的内容进行怎么插入
+            //
+            // 1 申请内存
+            tmp_xxx_node = (list_xxx_t *)malloc(sizeof(list_xxx_t));
 
-                        // 2 将 共享内存中的数据拷贝过来
-                        //
-                        //void *memcpy(void *dest, const void *src, size_t n);
-                        memcpy(&(tmp_xxx_node->data),&(shms->buff_to_send),sizeof(shms->buff_to_send));
-                        //
-                        // 3 置 send_buf 可写
-                        enable_writeable_send(&(shms->read_write_state));
+            // 2 将 共享内存中的数据拷贝过来
+            //
+            //void *memcpy(void *dest, const void *src, size_t n);
+            memcpy(&(tmp_xxx_node->data),&(shms->buff_to_send),sizeof(shms->buff_to_send));
+            tmp_xxx_node->data.msg_info.dead_line= SERVER_DEADLINE;
+            //
+            // 3 置 send_buf 可写
+            enable_writeable_send(&(shms->read_write_state));
 
-                        // 4 释放 锁
-                        sem_post((sem_t *)&(shms->sem));
-                        
-
-                        // 读 链表中的数据,
-                        
-
-                        //目前插入的数据 不够 ,应该讲send的数据全部插入
-			printf(YELLOW "recv msg form pid : %d" NONE,tmp_xxx_node->data.msg_info.pid);
-			printf("%s\n",tmp_xxx_node->data.msg_info.fifo_path);
-			//printf("%s\n",tmp_xxx_node->data.node.context);
-
-			// 2. 插入 从后插,目前这么做 ,之后根据 1 来 进行选择怎么插入
-			printf(GREEN "insert buff_to_send into linklist\n" NONE);
-                        list_add_tail(&(tmp_xxx_node->list),&list_xxx_head.list);
-	//		add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
-                         
-                        // 这里将ack_state 赋值
+            // 4 释放 锁
+            sem_post((sem_t *)&(shms->sem));
 
 
-			// 3. 发送 2.R
-			//从 msg_info 中找到跟进程相关的东西 ,暂定 pid ,然后发送给该 pid 一个回应,表示已经接收到
-			//该pid 已经对该回应进行 判断, 如果是正确的回应,则确定 已经发送到 ws_client
-			//回应必须只发给对应的进程 ,因为 我已经接到了,所以 最好用个保险的方式
-			//通知他, 让 客户端的程序最简化
+            // 读 链表中的数据,
 
-			// 1.打开
-			fifo_fd = open((char *)(tmp_xxx_node->data.msg_info.fifo_path),O_RDWR);
-			if(0 > fifo_fd){
-				perror("open");
-			}
-                        bzero(buf,sizeof(buf));
-                        buf[0]=R1;
-                        //printf("%d\n",strlen(tmp_xxx_node->data.node.key[R1]));
-			snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R1]); //告知某次的R1 , 某次用key_1R 来表示 ,R1 用 buf 的第一个字节表示
-                        buf[sizeof(buf)-1] = ack_state;
 
-                        
+            //目前插入的数据 不够 ,应该讲send的数据全部插入
+            printf(YELLOW "recv msg form pid : %d" NONE,tmp_xxx_node->data.msg_info.pid);
+            printf("%s\n",tmp_xxx_node->data.msg_info.fifo_path);
+            //printf("%s\n",tmp_xxx_node->data.node.context);
 
-			// 2. 写
-                         
-			printf(RED "send ack %d.R:%s",buf[0],buf+1);
-			write(fifo_fd,buf,sizeof(buf));
-                        kill(tmp_xxx_node->data.msg_info.pid, SIGUSR1);
-			printf("   ...send ack %d.R to %d DONE\n" NONE,buf[0],tmp_xxx_node->data.msg_info.pid);
-			// 3.关闭
-			close(fifo_fd);
-			bzero(buf,sizeof(buf));
+            // 2. 插入 从后插,目前这么做 ,之后根据 1 来 进行选择怎么插入
+            printf(GREEN "insert buff_to_send into linklist\n" NONE);
+            list_add_tail(&(tmp_xxx_node->list),&list_xxx_head.list);
+            //		add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
 
-                        
-		//	shms->shm_state = NUMBER_OF_MEMBERS;//修改 为 一个 不会 被 判断 的状态, 因为每次 要 判断 shms->shm_state == WRITEABLE 
-		}else //没写入
-                    sem_post((sem_t *)&(shms->sem));
-	}
-	return NULL;
+            // 这里将ack_state 赋值
+
+
+            // 3. 发送 1.R
+            //从 msg_info 中找到跟进程相关的东西 ,暂定 pid ,然后发送给该 pid 一个回应,表示已经接收到
+            //该pid 已经对该回应进行 判断, 如果是正确的回应,则确定 已经发送到 ws_client
+            //回应必须只发给对应的进程 ,因为 我已经接到了,所以 最好用个保险的方式
+            //通知他, 让 客户端的程序最简化
+
+            // 1.打开
+            fifo_fd = open((char *)(tmp_xxx_node->data.msg_info.fifo_path),O_RDWR);
+            if(0 > fifo_fd){
+                perror("open");
+            }
+            bzero(buf,sizeof(buf));
+            buf[0]=R1;
+            //printf("%d\n",strlen(tmp_xxx_node->data.node.key[R1]));
+            snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R1]); //告知某次的R1 , 某次用key_1R 来表示 ,R1 用 buf 的第一个字节表示
+            buf[sizeof(buf)-1] = ack_state;
+
+
+
+            // 2. 写
+
+            printf(RED "send ack %d.R:%s",buf[0],buf+1);
+            write(fifo_fd,buf,sizeof(buf));
+            kill(tmp_xxx_node->data.msg_info.pid, SIGUSR1);
+            printf("   ...send ack %d.R to %d DONE\n" NONE,buf[0],tmp_xxx_node->data.msg_info.pid);
+            // 3.关闭
+            close(fifo_fd);
+            bzero(buf,sizeof(buf));
+
+
+            //	shms->shm_state = NUMBER_OF_MEMBERS;//修改 为 一个 不会 被 判断 的状态, 因为每次 要 判断 shms->shm_state == WRITEABLE 
+        }else //没写入
+            sem_post((sem_t *)&(shms->sem));
+    }
+    return NULL;
 }
 
 /*
  *功能 : 按照顺序 
- 		1. 读取链表节点的信息
-		2. 组包
+ 1. 读取链表节点的信息
+ 2. 组包
  * 		3. 发送消息
  * 		4. 发送 2.R
  * 		5. 删除对应的链表节点
@@ -884,127 +920,127 @@ static void * thread_insert(void *arg){
 
 static void * thread_del_list(void *tool_in){
 
-	int fifo_fd = -1;
-	char buf[32];
-	struct pthread_routine_tool *tool = (struct pthread_routine_tool*)tool_in;
-	unsigned char *audio_pkt_p = NULL;
-	unsigned char * tmp_p = NULL;
-	char * audio_buf = NULL;
-	int ret = 0;
-	char *enc = NULL;
-	char *out = NULL;
-	char * send_json_p = NULL;
+    int fifo_fd = -1;
+    char buf[32];
+    struct pthread_routine_tool *tool = (struct pthread_routine_tool*)tool_in;
+    unsigned char *audio_pkt_p = NULL;
+    unsigned char * tmp_p = NULL;
+    char * audio_buf = NULL;
+    int ret = 0;
+    char *enc = NULL;
+    char *out = NULL;
+    char * send_json_p = NULL;
 
-	cJSON *root,*fmt_pl ,*fmt_gp;
+    cJSON *root,*fmt_pl ,*fmt_gp;
 
-	char  tmpConKey[64] = {0};
+    char  tmpConKey[64] = {0};
 
-	FILE *fp = NULL;
+    FILE *fp = NULL;
 
-	int filesize = 0;
+    int filesize = 0;
 
-        list_xxx_t *tmp_xxx_node;
+    list_xxx_t *tmp_xxx_node;
     struct list_head *pos,*n;
     int ack_state = 2;
 
-        int i = 0;
+    int i = 0;
 
-	printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
+    printf("sws : %s,%s,line = %d\n",__FILE__,__func__,__LINE__);
 
-	// 1. 等待  web_socket 连接建立
-	while(!connection_flag)  // 连接建立完成,会达到 一个状态 LWS_CALLBACK_CLIENT_ESTABLISHED ,在这个状态中 , 置位 connection_flag 为 1
-		usleep(1000*20);  
+    // 1. 等待  web_socket 连接建立
+    while(!connection_flag)  // 连接建立完成,会达到 一个状态 LWS_CALLBACK_CLIENT_ESTABLISHED ,在这个状态中 , 置位 connection_flag 为 1
+        usleep(1000*20);  
 
-	// 2. 发送log_in 包
+    // 2. 发送log_in 包
 
-	generate_login_cjson(&cjson_to_send); //生成 json包
-	pkt_send_format = LWS_WRITE_TEXT; //发送的格式
-	cid_send = 10211; //设置 cid_send
-	//pkt_send_format  cid_send 会在 这次 对应的 收到的 包中进行 校验 
-	websocket_write_back(tool->wsi,cjson_to_send,-1,pkt_send_format);
+    generate_login_cjson(&cjson_to_send); //生成 json包
+    pkt_send_format = LWS_WRITE_TEXT; //发送的格式
+    cid_send = 10211; //设置 cid_send
+    //pkt_send_format  cid_send 会在 这次 对应的 收到的 包中进行 校验 
+    websocket_write_back(tool->wsi,cjson_to_send,-1,pkt_send_format);
 
-	//2. 等待 log_in 包的 回应
-	while(!packet_come_flag)  //packet_come_flag 会在 收到 正确的包 时 置位 1
-		usleep(1000*20);  
-	packet_come_flag = 0;
-	printf("verify packet comes\n");
-
-
-	while(1){ //这里 循环发送包
-
-		usleep(1000*200); //在 正常工作 时,这个需要 处理一下, 用别的机制代替 //TODO
-
-		//print_count_linkedlist(list_h_pointer); //打印 链表中有多少节点
-                //
-                i = 0;
-                list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
-                    i++;
-                printf(PURPLE "%d nodes in the linklist\n" NONE,i);
-
-		//if(list_h_pointer->next == NULL) //如果为空链表,头结点中没有数据
-		//	continue;
-                if (list_empty(&list_xxx_head.list))
-                    continue;
+    //2. 等待 log_in 包的 回应
+    while(!packet_come_flag)  //packet_come_flag 会在 收到 正确的包 时 置位 1
+        usleep(1000*20);  
+    packet_come_flag = 0;
+    printf("verify packet comes\n");
 
 
-		// 1. 组包  ,引用的为 链表头结点 后面的包
+    while(1){ //这里 循环发送包
 
-		// list_h_pointer->next->data.context  
+        usleep(1000*200); //在 正常工作 时,这个需要 处理一下, 用别的机制代替 //TODO
 
+        //print_count_linkedlist(list_h_pointer); //打印 链表中有多少节点
+        //
+        i = 0;
+        list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
+            i++;
+        printf(PURPLE "%d nodes in the linklist\n" NONE,i);
 
-		// 2. 发包,发头结点后面的包
-                alarm(3);
-		//websocket_write_back
-
-
-		printf(GREEN "send the first node\n");
-
-
-		// 2. 发送 2.R
-
-
-                list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
-                {
-
-                    // 1.打开
-                    fifo_fd = open(tmp_xxx_node->data.msg_info.fifo_path,O_RDWR);
-                    if(0 > fifo_fd){
-                        perror("open");
-                    }
-
-                    bzero(buf,sizeof(buf));
-                    buf[0] = R2;
-                    snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R2]); //KEY_0 是 用于 验证 2.R的
-                    buf[sizeof(buf)-1] = ack_state;
-                    printf(RED "send ack %d.R :%s to pid :%d",buf[0],buf+1,tmp_xxx_node->data.msg_info.pid);
+        //if(list_h_pointer->next == NULL) //如果为空链表,头结点中没有数据
+        //	continue;
+        if (list_empty(&list_xxx_head.list))
+            continue;
 
 
-                    // 2. 写
-                    write(fifo_fd,buf,sizeof(buf));
-                    kill(tmp_xxx_node->data.msg_info.pid,SIGUSR1);
-                    printf("   ...send ack %d.R DONE\n" NONE,buf[0]);
-                    break;
-                }
+        // 1. 组包  ,引用的为 链表头结点 后面的包
 
-                // 3.关闭
-                close(fifo_fd);
-
-                // 3. 删 掉 发送过的节点
-                //	del_front_linkedlist(list_h_pointer,NULL);
+        // list_h_pointer->next->data.context  
 
 
-                list_for_each_safe(pos,n,&list_xxx_head.list){  		
-                    tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
-                    list_del(pos); // 这肯定是第一个节点
-                    free(tmp_xxx_node);//释放数据
-                    break;//跳出
-                }
+        // 2. 发包,发头结点后面的包
+        //websocket_write_back
 
 
-                printf(GREEN "send buff_to_send form linklist to ws_server\n" NONE);
-                puts("\n");
+        printf(GREEN "send the first node\n");
+
+
+        // 2. 发送 2.R
+
+
+        list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
+        {
+
+            // 1.打开
+            fifo_fd = open(tmp_xxx_node->data.msg_info.fifo_path,O_RDWR);
+            if(0 > fifo_fd){
+                perror("open");
+            }
+
+            bzero(buf,sizeof(buf));
+            buf[0] = R2;
+            snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R2]); //KEY_0 是 用于 验证 2.R的
+            buf[sizeof(buf)-1] = ack_state;
+            printf(RED "send ack %d.R :%s to pid :%d",buf[0],buf+1,tmp_xxx_node->data.msg_info.pid);
+
+
+            // 2. 写
+            write(fifo_fd,buf,sizeof(buf));
+            kill(tmp_xxx_node->data.msg_info.pid,SIGUSR1);
+            printf("   ...send ack %d.R DONE\n" NONE,buf[0]);
+            break;
         }
-        return NULL;
+
+        // 3.关闭
+        close(fifo_fd);
+
+        // 3. 删 掉 发送过的节点
+        //	del_front_linkedlist(list_h_pointer,NULL);
+
+
+        list_for_each_safe(pos,n,&list_xxx_head.list){  		
+            tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+            list_del(pos); // 这肯定是第一个节点
+            alarm(1);
+            list_add_tail(&(tmp_xxx_node->list),&list_xxx_head2.list);
+            break;//跳出
+        }
+
+
+        printf(GREEN "send buff_to_send form linklist to ws_server\n" NONE);
+        puts("\n");
+    }
+    return NULL;
 }
 
 
@@ -1127,6 +1163,7 @@ int main(int argc, const char *argv[])
     //list_h_pointer = create_linkedlist();
 
     INIT_LIST_HEAD(&list_xxx_head.list);  
+    INIT_LIST_HEAD(&list_xxx_head2.list);  
 
 
     signal(SIGINT, sig_handler);
