@@ -5,7 +5,7 @@ typedef struct {
 //	char fifo_path[32];
 //	pid_t  pid;
 	int key[3]; //这个 key[0] 用于验证 2.R ,key[1] 用于验证 3.R key[2] 用于验证 4.R
-	char context [32];
+//	char context [32];
 } node_t;
 
 //

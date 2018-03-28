@@ -21,7 +21,7 @@ typedef struct {
 
     char fifo_path[32];
 
-    int key_1R; 
+    //int key_1R; 
 
     pid_t pid;
 
@@ -71,12 +71,12 @@ struct shm////共享内存使用的结构体的声明
 
 
 typedef enum {
-    Unknown_state,
     R1,
     R2,
     R3,
     R4,
-    RA//active
+    RA,//active
+    Unknown_state
 } msg_type_t;
 
 

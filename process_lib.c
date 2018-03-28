@@ -291,6 +291,7 @@ extern char buf_verify[4][32];
 int pkt_send(msg_send_t * send_pkt_p,int size,int count){
 
 	int ret = 0;
+        int i;
 	bzero(buf_verify,sizeof(buf_verify));
 
 	//printf("shm state : %s\n", shms->shm_state == 0 ?("WRITEABLE"):(shms->shm_state == 1?("READABLE"):("NUMBER_OF_MEMBERS")));
@@ -325,26 +326,22 @@ loop:
         disable_writeable_send(&(shms->read_write_state));
 	//用于验证1.R 和 验证 2.R 3.R 4.R 的变量放的位置不同,所以
 	//不能在一块做
-	bzero(buf_verify[0],sizeof(buf_verify[0]));
-	snprintf(buf_verify[0],sizeof(buf_verify[0]),"%d",shms->buff_to_send.msg_info.key_1R);
 
 
-	{
-		int i = 0;
 
-		for(i = 0;i < 3;i++){
+        for(i = 0;i < 3;i++){
 
-			bzero(buf_verify[i+1],sizeof(buf_verify[i+1]));
-			snprintf(buf_verify[i+1],sizeof(buf_verify[i+1]),"%d",shms->buff_to_send.node.key[i]);
+            bzero(buf_verify[i],sizeof(buf_verify[i]));
+            snprintf(buf_verify[i],sizeof(buf_verify[i]),"%d",shms->buff_to_send.node.key[i]);
 
-		}
-	}
+        }
 
-	sem_post((sem_t *)&(shms->sem));
+
+        sem_post((sem_t *)&(shms->sem));
         alarm(5);
 
-	printf(PURPLE "%dth msg to the ws_client\n" NONE,count);
+        printf(PURPLE "%dth msg to the ws_client\n" NONE,count);
 
-	return  0;
+        return  0;
 }
 

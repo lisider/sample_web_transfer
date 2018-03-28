@@ -146,39 +146,48 @@ static void sig_handler(int arg){
                 print_error(*buf + 4);
             }
 
+            //得到是 发送的第几次返回
             state = buf[0];
 
             //state 对 state 进行判断,并做相应的动作
 
+            printf("verify %d\n",state);
             //重新初始化buf
             buf[0] = 0;
 
 
+            //得到是 哪一次的发送的返回
             if(read(fifo_fd,buf,sizeof(buf)-1) <=0){
                 printf(RED "%d.R read body error,abandon the packet\n" NONE,state+1);
                 print_error(state + 4);
             }
 
+
             // 根据 *buf 进行校验
 
-            printf("verify %d\n",state);
-    //        printf("Receive %d\n",*(int *)(buf+1));
+            //printf("Receive %d\n",*(int *)(buf+1));
      
             //判断状态,然后进行比较.
-            if(strcmp(buf_verify[state-1],buf) == 0){
-                printf(GREEN "get right ack %d.R\n" NONE,state);
+            if(strcmp(buf_verify[state],buf) == 0){
+                printf(GREEN "get right ack %d.R\n" NONE,state+1);
             }else
             {
-                printf(RED "get wrong ack %d.R: %s\n" NONE,state,buf+1);
+                printf(RED "get wrong ack %d.R: %s\n" NONE,state+1,buf+1);
                 print_error(state + 8);
             }
+
+            //得到状态信息
+            printf("ack_state : %d\n",buf[sizeof(buf)-2]);
+
+
             //然后做相应的函数
-            call_back_fun[state-1]();
+            call_back_fun[state]();
 
             break;
 
         case SIGALRM: //退出信号
             //定时删链表
+
 
             break;
 
@@ -230,7 +239,7 @@ int main(int argc, const char *argv[]){
         // 3. 填充 buff_to_send //具体填充什么看结构体定义
         // write 1 填充 node                                                                    
         bzero((void *)&(buff_to_send->node),sizeof(node_t));                               
-        strcpy((char *)(buff_to_send->node.context),"i am node context");                  
+        //strcpy((char *)(buff_to_send->node.context),"i am node context");                  
         //buff_to_send->node.pid = getpid();                                                 
         buff_to_send->node.key[0] = count+30;                                              
         buff_to_send->node.key[1] = count+60;                                              
@@ -241,7 +250,7 @@ int main(int argc, const char *argv[]){
         //填充  msg_info                                                                        
         bzero((void *)&(buff_to_send->msg_info),sizeof(msg_info_t));                       
         strcpy((char *)(buff_to_send->msg_info.context),"i am node context");
-        buff_to_send->msg_info.key_1R = count;                                             
+        //buff_to_send->msg_info.key_1R = count;                                             
         buff_to_send->msg_info.pid = getpid();                                             
         strcpy((char *)(buff_to_send->msg_info.fifo_path),argv[1]);                      
         //printf(GREEN "msg_info :%s\n" NONE,buff_to_send->msg_info.context);                

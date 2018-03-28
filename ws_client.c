@@ -787,6 +787,8 @@ void usage(void){
 
 static void * thread_insert(void *arg){
 
+    char ack_state = 1;
+
     list_xxx_t *tmp_xxx_node;
 	int fifo_fd = -1;
 	char buf[32];
@@ -823,13 +825,14 @@ static void * thread_insert(void *arg){
                         //目前插入的数据 不够 ,应该讲send的数据全部插入
 			printf(YELLOW "recv msg form pid : %d" NONE,tmp_xxx_node->data.msg_info.pid);
 			printf("%s\n",tmp_xxx_node->data.msg_info.fifo_path);
-			printf("%s\n",tmp_xxx_node->data.node.context);
+			//printf("%s\n",tmp_xxx_node->data.node.context);
 
 			// 2. 插入 从后插,目前这么做 ,之后根据 1 来 进行选择怎么插入
 			printf(GREEN "insert buff_to_send into linklist\n" NONE);
                         list_add_tail(&(tmp_xxx_node->list),&list_xxx_head.list);
 	//		add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
                          
+                        // 这里将ack_state 赋值
 
 
 			// 3. 发送 2.R
@@ -843,8 +846,13 @@ static void * thread_insert(void *arg){
 			if(0 > fifo_fd){
 				perror("open");
 			}
-                        buf[0]=1;
-			snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.msg_info.key_1R);
+                        bzero(buf,sizeof(buf));
+                        buf[0]=R1;
+                        //printf("%d\n",strlen(tmp_xxx_node->data.node.key[R1]));
+			snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R1]); //告知某次的R1 , 某次用key_1R 来表示 ,R1 用 buf 的第一个字节表示
+                        buf[sizeof(buf)-1] = ack_state;
+
+                        
 
 			// 2. 写
                          
@@ -897,6 +905,7 @@ static void * thread_del_list(void *tool_in){
 
         list_xxx_t *tmp_xxx_node;
     struct list_head *pos,*n;
+    int ack_state = 2;
 
         int i = 0;
 
@@ -964,8 +973,9 @@ static void * thread_del_list(void *tool_in){
                     }
 
                     bzero(buf,sizeof(buf));
-                    buf[0] = 2;
-                    snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[0]); //KEY_0 是 用于 验证 2.R的
+                    buf[0] = R2;
+                    snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R2]); //KEY_0 是 用于 验证 2.R的
+                    buf[sizeof(buf)-1] = ack_state;
                     printf(RED "send ack %d.R :%s to pid :%d",buf[0],buf+1,tmp_xxx_node->data.msg_info.pid);
 
 
