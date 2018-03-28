@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <base64.h> 
 #include <libwebsockets.h> //必须 找到这个文件
+#include "read_write_state_api.h"
 
 
 /**************************************************************************************
@@ -220,6 +221,12 @@ void sig_handler(int arg){
 		exit(23); //这个23需要定义
 
 		break;
+	case SIGALRM:
+
+                //循环链表,并删除剩余=0 的
+
+		break;
+
 
 	default:
 		;
@@ -682,8 +689,11 @@ static int shm_init(void){
 	bzero(shms,sizeof(struct shm)); //清 0 共享内存
 
 	//下面为初始化 共享内存中的数据
-	shms->shm_state = NUMBER_OF_MEMBERS; //这个状态不用来进行逻辑判断
+        init_status(&(shms->read_write_state));
+        shms->unwriteable_times_send=0;
+        shms->unwriteable_times_recv=0;
 	sem_init((sem_t *)&(shms->sem), 0, 1); 
+	//shms->shm_state = NUMBER_OF_MEMBERS; //这个状态不用来进行逻辑判断
 
 	return 0;
 }
@@ -761,12 +771,14 @@ static void * thread_insert(void *arg){
 		usleep(1000*1000); //需要被其他机制 替代
 		sem_wait((sem_t *)&(shms->sem));
 
-		if(shms->shm_state == WRITEABLE){ //普通进程 已经写入了
+		if(!is_writeable_send(shms->read_write_state)){ //普通进程 已经写入了
 
 			// 1. 插入 前的判断 //TODO
 			//对 msginfo 中的数据进行分析
 			//将 node  插入 链表 根据 msginfo 的内容进行怎么插入
 
+
+                        //目前插入的数据 不够 ,应该讲send的数据全部插入
 			printf(YELLOW "recv msg form pid : %d" NONE,shms->buff_to_send.msg_info.pid);
 			printf("%s\n",shms->buff_to_send.msg_info.fifo_path);
 			printf("%s\n",shms->buff_to_send.node.context);
@@ -774,6 +786,7 @@ static void * thread_insert(void *arg){
 			// 2. 插入 从后插,目前这么做 ,之后根据 1 来 进行选择怎么插入
 			printf(GREEN "insert buff_to_send into linklist\n" NONE);
 			add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
+
 
 			// 3. 发送 2.R
 			//从 msg_info 中找到跟进程相关的东西 ,暂定 pid ,然后发送给该 pid 一个回应,表示已经接收到
@@ -799,7 +812,9 @@ static void * thread_insert(void *arg){
 			close(fifo_fd);
 			bzero(buf,sizeof(buf));
 
-			shms->shm_state = NUMBER_OF_MEMBERS;//修改 为 一个 不会 被 判断 的状态, 因为每次 要 判断 shms->shm_state == WRITEABLE 
+                        enable_writeable_send(&(shms->read_write_state));
+                        
+		//	shms->shm_state = NUMBER_OF_MEMBERS;//修改 为 一个 不会 被 判断 的状态, 因为每次 要 判断 shms->shm_state == WRITEABLE 
 		}
 
 		sem_post((sem_t *)&(shms->sem));
@@ -875,8 +890,9 @@ static void * thread_del_list(void *tool_in){
 
 
 		// 2. 发包,发头结点后面的包
-
+                alarm(3);
 		//websocket_write_back
+
 
 		printf(GREEN "send the first node\n");
 
@@ -1030,6 +1046,7 @@ int main(int argc, const char *argv[])
 	list_h_pointer = create_linkedlist();
 
 	signal(SIGINT, sig_handler);
+	signal(SIGALRM, sig_handler);
 
 	memset(&i, 0, sizeof(i));
 

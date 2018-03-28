@@ -129,7 +129,7 @@ static void sig_handler(int arg){
     char rm_fifo_str[40];
     char buf[32];	// 用来接收fifo 的 信息
     bzero(buf,sizeof(buf));
-    char state;
+    msg_type_t state;
     switch(arg){
 
         case SIGINT: //退出信号
@@ -147,6 +147,8 @@ static void sig_handler(int arg){
             }
 
             state = buf[0];
+
+            //state 对 state 进行判断,并做相应的动作
 
             //重新初始化buf
             buf[0] = 0;
@@ -172,6 +174,11 @@ static void sig_handler(int arg){
             }
             //然后做相应的函数
             call_back_fun[state-1]();
+
+            break;
+
+        case SIGALRM: //退出信号
+            //定时删链表
 
             break;
 

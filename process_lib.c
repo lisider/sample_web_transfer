@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "process_lib.h"
+#include "read_write_state_api.h"
 
 
 /**************************************************************************************
@@ -150,6 +151,7 @@ void creat_fifo(const char *path){
 
 }
 
+#if 0
 int pkt_service(msg_send_t * send_pkt_p,int size,int count){
 
 	int ret = 0;
@@ -281,6 +283,7 @@ READ_AGGIN:
 	puts("\n");
 	return  0;
 }
+#endif
 
 
 extern char buf_verify[4][32];
@@ -306,7 +309,20 @@ loop:
 	printf(GREEN "send buff_to_send->form process to ws_client\n" NONE); 
 	memcpy((char *)&(shms->buff_to_send),send_pkt_p,sizeof(msg_send_t));
 
-	shms->shm_state = WRITEABLE;                                                            
+        while(!is_writeable_send(shms->read_write_state)){
+            shms->unwriteable_times_send += 1;
+            
+            if(shms->unwriteable_times_send > 5)
+            {
+                shms->unwriteable_times_send = 0;
+                break;
+            }
+
+            sleep(1);
+
+        }
+	//shms->shm_state = WRITEABLE;                                                            
+        disable_writeable_send(&(shms->read_write_state));
 	//用于验证1.R 和 验证 2.R 3.R 4.R 的变量放的位置不同,所以
 	//不能在一块做
 	bzero(buf_verify[0],sizeof(buf_verify[0]));
@@ -325,6 +341,7 @@ loop:
 	}
 
 	sem_post((sem_t *)&(shms->sem));
+        alarm(5);
 
 	printf(PURPLE "%dth msg to the ws_client\n" NONE,count);
 
