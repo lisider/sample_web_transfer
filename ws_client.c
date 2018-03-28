@@ -786,12 +786,15 @@ static void * thread_insert(void *arg){
 			if(0 > fifo_fd){
 				perror("open");
 			}
-			snprintf(buf,sizeof(buf),"%d",shms->buff_to_send.msg_info.key_1R);
+                        buf[0]=1;
+			snprintf(buf+1,sizeof(buf)-1,"%d",shms->buff_to_send.msg_info.key_1R);
 
 			// 2. 写
-			printf(RED "send ack 1.R:%s",buf);
+                         
+			printf(RED "send ack %d.R:%s",buf[0],buf+1);
 			write(fifo_fd,buf,sizeof(buf));
-			printf("   ...send ack 1.R DONE\n" NONE);
+                        kill(shms->buff_to_send.node.pid, SIGUSR1);
+			printf("   ...send ack %d.R to %d DONE\n" NONE,buf[0],shms->buff_to_send.node.pid);
 			// 3.关闭
 			close(fifo_fd);
 			bzero(buf,sizeof(buf));
@@ -886,11 +889,13 @@ static void * thread_del_list(void *tool_in){
 			perror("open");
 		}
 		bzero(buf,sizeof(buf));
-		snprintf(buf,sizeof(buf),"%d",list_h_pointer->next->data.key[0]); //KEY_0 是 用于 验证 2.R的
+                buf[0] = 2;
+		snprintf(buf+1,sizeof(buf)-1,"%d",list_h_pointer->next->data.key[0]); //KEY_0 是 用于 验证 2.R的
 		// 2. 写
-		printf(RED "send ack 2.R :%s to pid :%d",buf,list_h_pointer->next->data.pid);
+		printf(RED "send ack %d.R :%s to pid :%d",buf[0],buf+1,list_h_pointer->next->data.pid);
 		write(fifo_fd,buf,sizeof(buf));
-		printf("   ...send ack 2.R DONE\n" NONE);
+                kill(list_h_pointer->next->data.pid,SIGUSR1);
+		printf("   ...send ack %d.R DONE\n" NONE,buf[0]);
 
 		// 3.关闭
 		close(fifo_fd);

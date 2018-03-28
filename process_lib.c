@@ -282,3 +282,52 @@ READ_AGGIN:
 	return  0;
 }
 
+
+extern char buf_verify[4][32];
+
+int pkt_send(msg_send_t * send_pkt_p,int size,int count){
+
+	int ret = 0;
+	bzero(buf_verify,sizeof(buf_verify));
+
+	//printf("shm state : %s\n", shms->shm_state == 0 ?("WRITEABLE"):(shms->shm_state == 1?("READABLE"):("NUMBER_OF_MEMBERS")));
+
+loop:
+	if (sem_trywait((sem_t *)&(shms->sem)) == -1){
+
+		perror("sem_trywait");
+
+		goto loop;
+	}
+	printf("------------------------------------------------------------------\n");
+
+	//pthread_rwlock_wrlock(&(shms->lock));
+
+	printf(GREEN "send buff_to_send->form process to ws_client\n" NONE); 
+	memcpy((char *)&(shms->buff_to_send),send_pkt_p,sizeof(msg_send_t));
+
+	shms->shm_state = WRITEABLE;                                                            
+	//用于验证1.R 和 验证 2.R 3.R 4.R 的变量放的位置不同,所以
+	//不能在一块做
+	bzero(buf_verify[0],sizeof(buf_verify[0]));
+	snprintf(buf_verify[0],sizeof(buf_verify[0]),"%d",shms->buff_to_send.msg_info.key_1R);
+
+
+	{
+		int i = 0;
+
+		for(i = 0;i < 3;i++){
+
+			bzero(buf_verify[i+1],sizeof(buf_verify[i+1]));
+			snprintf(buf_verify[i+1],sizeof(buf_verify[i+1]),"%d",shms->buff_to_send.node.key[i]);
+
+		}
+	}
+
+	sem_post((sem_t *)&(shms->sem));
+
+	printf(PURPLE "%dth msg to the ws_client\n" NONE,count);
+
+	return  0;
+}
+

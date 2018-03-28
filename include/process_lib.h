@@ -24,5 +24,6 @@ enum ERROR_send_pkt{
 extern void call_back_register(call_back_fun_t *p,int count);
 extern void creat_fifo(const char *path);
 extern int pkt_service(msg_send_t * send_pkt_p,int size,int count);
+extern int pkt_send(msg_send_t * send_pkt_p,int size,int count);
 extern void lib_exit_sig(int arg);
 #endif
