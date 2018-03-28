@@ -25,6 +25,8 @@ typedef struct {
 
     pid_t pid;
 
+    int dead_line;
+
     char context[64*1024];
 
 } msg_info_t;

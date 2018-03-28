@@ -338,7 +338,7 @@ loop:
 
 
         sem_post((sem_t *)&(shms->sem));
-        alarm(5);
+ //       alarm(5);
 
         printf(PURPLE "%dth msg to the ws_client\n" NONE,count);
 
