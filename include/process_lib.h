@@ -1,7 +1,7 @@
 #ifndef __PROCESS_LIB__
 #define __PROCESS_LIB__
 
-typedef void (*call_back_fun_t)(void);
+typedef void (*call_back_fun_t)(int count , char state);
 
 
 enum ERROR_send_pkt{

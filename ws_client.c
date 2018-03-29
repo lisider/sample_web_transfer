@@ -126,6 +126,17 @@ list_xxx_t list_xxx_head2;
  **************************************************************************************/
 
 
+char * processtype(process_type_t process_type){
+
+    switch(process_type){
+        case BLUETOOTH:
+            return "bluetooth";
+            break;
+        default:
+            break;
+    }
+}
+
 int file_size(const char * filename)  
 {  
 	FILE *fp=fopen(filename,"r");  
@@ -215,7 +226,7 @@ void sig_handler(int arg){
                 list_xxx_t *tmp_xxx_node;
                 struct list_head *pos,*n;
     char buf[32];
-    int ack_state = 5;
+    ack_state_t ack_state = INIT_STATE;
 
 	switch(arg){
 
@@ -264,19 +275,22 @@ void sig_handler(int arg){
 
                         bzero(buf,sizeof(buf));
                         buf[0] = RA;
-                       // snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R2]); //KEY_0 是 用于 验证 2.R的
+                        snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[RA]); //KEY_0 是 用于 验证 2.R的
+                        ack_state = NORESPONSE;
                         buf[sizeof(buf)-1] = ack_state;
-                        printf(RED "send ack  %d.R  to pid :%d because of dead_line",buf[0],tmp_xxx_node->data.msg_info.pid);
+                        printf(YELLOW "send ack  AR  to pid :%d because of dead_line,count :%d",tmp_xxx_node->data.msg_info.pid,tmp_xxx_node->data.msg_info.count);
 
 
                         // 2. 写
                         write(fifo_fd,buf,sizeof(buf));
                         kill(tmp_xxx_node->data.msg_info.pid,SIGUSR1);
-                        printf("   ...send ack %d.R DONE\n" NONE,buf[0]);
+                        printf("   ...send ack AR DONE\n" NONE,buf[0]);
                         close(fifo_fd);
 
                         free(tmp_xxx_node);//释放数据
-                        printf("a node has removed from the doublelist  list_xxx_head2 because of dead_line ...\n");
+                        printf(YELLOW"remove node from list_xxx_head2 because of dead_line,from %s,count is %d\n"NONE,\
+                                processtype(tmp_xxx_node->data.msg_info.process_type),\
+                                tmp_xxx_node->data.msg_info.count);
                     }
                 }
 
@@ -820,63 +834,54 @@ void usage(void){
  *
  * */
 
+
 static void * thread_insert(void *arg){
 
-    char ack_state = 1;
+    ack_state_t ack_state = INIT_STATE;
 
     list_xxx_t *tmp_xxx_node;
     int fifo_fd = -1;
+    int i;
     char buf[32];
     bzero(buf,sizeof(buf));
 
     while(1){
-        usleep(1000*1000); //需要被其他机制 替代
+        usleep(1000*1000); //需要被其他机制 替代  // 一秒发送一次,这里待解决.时间长了可能导致对共享内存 区 的数据 汲取不及时,时间快了会导致长期占用信号量.会造成普通进程对信号量汲取的困难
         sem_wait((sem_t *)&(shms->sem));
 
         if(!is_writeable_send(shms->read_write_state)){ //普通进程 已经写入了
 
-            // 1. 插入 前的判断 //TODO
-            //对 msginfo 中的数据进行分析
-            //将 node  插入 链表 根据 msginfo 的内容进行怎么插入
-            //
-            // 1 申请内存
+            //1.拷贝共享内存区数据到暂时节点,并修改暂时节点的deadline
             tmp_xxx_node = (list_xxx_t *)malloc(sizeof(list_xxx_t));
-
-            // 2 将 共享内存中的数据拷贝过来
-            //
-            //void *memcpy(void *dest, const void *src, size_t n);
-            memcpy(&(tmp_xxx_node->data),&(shms->buff_to_send),sizeof(shms->buff_to_send));
+            memcpy(&(tmp_xxx_node->data),&(shms->buff_to_send),\
+                    sizeof(shms->buff_to_send));
             tmp_xxx_node->data.msg_info.dead_line= SERVER_DEADLINE;
-            //
-            // 3 置 send_buf 可写
-            enable_writeable_send(&(shms->read_write_state));
 
-            // 4 释放 锁
+            //2.处理同步信息
+            enable_writeable_send(&(shms->read_write_state));
             sem_post((sem_t *)&(shms->sem));
 
 
-            // 读 链表中的数据,
+            //3.解析暂时节点中的数据
+            printf(YELLOW "recv msg form process : %s,pid : %d,fifo_path : %s\n" NONE,\
+                    processtype(tmp_xxx_node->data.msg_info.process_type),\
+                    tmp_xxx_node->data.msg_info.pid,\
+                    tmp_xxx_node->data.msg_info.fifo_path);
 
-
-            //目前插入的数据 不够 ,应该讲send的数据全部插入
-            printf(YELLOW "recv msg form pid : %d" NONE,tmp_xxx_node->data.msg_info.pid);
-            printf("%s\n",tmp_xxx_node->data.msg_info.fifo_path);
-            //printf("%s\n",tmp_xxx_node->data.node.context);
-
-            // 2. 插入 从后插,目前这么做 ,之后根据 1 来 进行选择怎么插入
-            printf(GREEN "insert buff_to_send into linklist\n" NONE);
+            //4.插入链表 插入 从后插,目前这么做 ,之后根据 1 来 进行选择怎么插入,可能有优先级,链表读写的时候要不要同步,这是个问题//TODO
+            printf(YELLOW "Create a Temporary node ,insert Temporary node into Chain list to be sent ... ");
             list_add_tail(&(tmp_xxx_node->list),&list_xxx_head.list);
-            //		add_rear_linkedlist(list_h_pointer,(node_t *)&(shms->buff_to_send.node),sizeof(node_t));
-
-            // 这里将ack_state 赋值
+            printf("done\n" NONE);
 
 
-            // 3. 发送 1.R
-            //从 msg_info 中找到跟进程相关的东西 ,暂定 pid ,然后发送给该 pid 一个回应,表示已经接收到
-            //该pid 已经对该回应进行 判断, 如果是正确的回应,则确定 已经发送到 ws_client
-            //回应必须只发给对应的进程 ,因为 我已经接到了,所以 最好用个保险的方式
-            //通知他, 让 客户端的程序最简化
+            i = 0;
+            list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
+                i++;
+            printf(GREEN "%d nodes in the Chain list to be sent\n" NONE,i);
+#if 0
 
+            // 正常情况下,没必要发,如果出错了要发. 那么这个是RA
+            // 什么情况下发,这是个问题
             // 1.打开
             fifo_fd = open((char *)(tmp_xxx_node->data.msg_info.fifo_path),O_RDWR);
             if(0 > fifo_fd){
@@ -888,8 +893,6 @@ static void * thread_insert(void *arg){
             snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R1]); //告知某次的R1 , 某次用key_1R 来表示 ,R1 用 buf 的第一个字节表示
             buf[sizeof(buf)-1] = ack_state;
 
-
-
             // 2. 写
 
             printf(RED "send ack %d.R:%s",buf[0],buf+1);
@@ -898,10 +901,8 @@ static void * thread_insert(void *arg){
             printf("   ...send ack %d.R to %d DONE\n" NONE,buf[0],tmp_xxx_node->data.msg_info.pid);
             // 3.关闭
             close(fifo_fd);
-            bzero(buf,sizeof(buf));
+#endif
 
-
-            //	shms->shm_state = NUMBER_OF_MEMBERS;//修改 为 一个 不会 被 判断 的状态, 因为每次 要 判断 shms->shm_state == WRITEABLE 
         }else //没写入
             sem_post((sem_t *)&(shms->sem));
     }
@@ -941,7 +942,7 @@ static void * thread_del_list(void *tool_in){
 
     list_xxx_t *tmp_xxx_node;
     struct list_head *pos,*n;
-    int ack_state = 2;
+    int ack_state = INIT_STATE;
 
     int i = 0;
 
@@ -973,9 +974,9 @@ static void * thread_del_list(void *tool_in){
         //print_count_linkedlist(list_h_pointer); //打印 链表中有多少节点
         //
         i = 0;
-        list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
+        list_for_each_entry(tmp_xxx_node,&list_xxx_head2.list,list)
             i++;
-        printf(PURPLE "%d nodes in the linklist\n" NONE,i);
+        printf(GREEN "%d nodes in the A chain list has been issued\n" NONE,i);
 
         //if(list_h_pointer->next == NULL) //如果为空链表,头结点中没有数据
         //	continue;
@@ -983,13 +984,6 @@ static void * thread_del_list(void *tool_in){
             continue;
 
 
-        // 1. 组包  ,引用的为 链表头结点 后面的包
-
-        // list_h_pointer->next->data.context  
-
-
-        // 2. 发包,发头结点后面的包
-        //websocket_write_back
 
 
         printf(GREEN "send the first node\n");
@@ -998,8 +992,18 @@ static void * thread_del_list(void *tool_in){
         // 2. 发送 2.R
 
 
-        list_for_each_entry(tmp_xxx_node,&list_xxx_head.list,list)
-        {
+        list_for_each_safe(pos,n,&list_xxx_head.list){
+            tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+
+
+            //TODO 发送数据
+            // 1. 组包  ,引用的为 链表头结点 后面的包
+
+            // list_h_pointer->next->data.context  
+
+
+            // 2. 发包,发头结点后面的包
+            //websocket_write_back
 
             // 1.打开
             fifo_fd = open(tmp_xxx_node->data.msg_info.fifo_path,O_RDWR);
@@ -1009,33 +1013,29 @@ static void * thread_del_list(void *tool_in){
 
             bzero(buf,sizeof(buf));
             buf[0] = R2;
-            snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R2]); //KEY_0 是 用于 验证 2.R的
+            snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R2]); 
+            ack_state = SUCCESS_ACK;
             buf[sizeof(buf)-1] = ack_state;
-            printf(RED "send ack %d.R :%s to pid :%d",buf[0],buf+1,tmp_xxx_node->data.msg_info.pid);
+            printf(YELLOW"send ack after send to pid :%d,name:%s,count: %d,",\
+                    tmp_xxx_node->data.msg_info.pid,\
+                    processtype(tmp_xxx_node->data.msg_info.process_type),\
+                    tmp_xxx_node->data.msg_info.count);
 
 
             // 2. 写
             write(fifo_fd,buf,sizeof(buf));
             kill(tmp_xxx_node->data.msg_info.pid,SIGUSR1);
-            printf("   ...send ack %d.R DONE\n" NONE,buf[0]);
-            break;
-        }
+            printf("   ...send ack DONE\n" NONE);
 
-        // 3.关闭
-        close(fifo_fd);
-
-        // 3. 删 掉 发送过的节点
-        //	del_front_linkedlist(list_h_pointer,NULL);
-
-
-        list_for_each_safe(pos,n,&list_xxx_head.list){  		
-            tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+            // 3. 删 掉 发送过的节点
+            //	del_front_linkedlist(list_h_pointer,NULL);
             list_del(pos); // 这肯定是第一个节点
             alarm(1);
             list_add_tail(&(tmp_xxx_node->list),&list_xxx_head2.list);
-            break;//跳出
-        }
 
+            // 3.关闭
+            close(fifo_fd);
+        }
 
         printf(GREEN "send buff_to_send form linklist to ws_server\n" NONE);
         puts("\n");

@@ -36,27 +36,33 @@ list_xxx_t list_xxx_head; //用于存放没有发送的节点
  * 函数定义区
  **************************************************************************************/
 
-void call_back_1R(void){
+void call_back_1R(int count,char state){
 
-    printf("i am call_back_1R \n");
+    printf(YELLOW"call_back_1R  count :%d, state:%d\n"NONE,count,state);
     return ;
 }
 
-void call_back_2R(void){
+void call_back_2R(int count,char state){
 
-    printf("i am call_back_2R\n");
+    printf(YELLOW"call_back_2R  count :%d, state:%d\n"NONE,count,state);
     return ;
 }
 
-void call_back_3R(void){
+void call_back_3R(int count,char state){
 
-    printf("i am call_back_3R\n");
+    printf(YELLOW"call_back_3R  count :%d, state:%d\n"NONE,count,state);
     return ;
 }
 
-void call_back_4R(void){
+void call_back_4R(int count,char state){
 
-    printf("i am call_back_4R\n");
+    printf(YELLOW"call_back_4R  count :%d, state:%d\n"NONE,count,state);
+    return ;
+}
+
+void call_back_AR(int count,char state){
+
+    printf(YELLOW"call_back_AR  count :%d, state:%d\n"NONE,count,state);
     return ;
 }
 
@@ -68,7 +74,6 @@ void usage(void){
     return ;
 }
 
-char buf_verify[4][32];
 
 extern int fifo_fd;
 
@@ -141,13 +146,15 @@ static void sig_handler(int arg){
     msg_type_t state;
     list_xxx_t *tmp_xxx_node;
     struct list_head *pos,*n;
+    int found = 0;
+    int i;
+    char buf_verify[32];
     switch(arg){
 
         case SIGINT: //退出信号
+            //处理fifo 和共享内存
             lib_exit_sig(SIGINT);
-            //free(tmp_xxx_node);
-
-
+            //处理链表
             printf("clean...\tremove");
             list_for_each_safe(pos,n,&list_xxx_head.list){  		
                 tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
@@ -157,81 +164,62 @@ static void sig_handler(int arg){
                 }
             }
             printf("done\n");
+            //退出
             exit(0);
-
             break;
         case SIGUSR1: //中转进程给他的信号
 
-
-            if(read(fifo_fd,buf,1)<=0){
+            //读消息
+            if(read(fifo_fd,buf,sizeof(buf))<=0){ // 得到的是 第几次返回 哪一次返回 返回的状态
                 printf(RED "%d.R read head error,abandon the packet\n" NONE,*buf+1);
                 print_error(*buf + 4);
             }
+            printf(GREEN "receive a msg,the count encryption:%s,return type:%d,return state::%d\n"NONE,buf+1,buf[0],buf[sizeof(buf)-1]);
 
-            //得到是 发送的第几次返回
-            state = buf[0];
 
-            //state 对 state 进行判断,并做相应的动作
-            //
-            if (state == RA){
-                printf(RED "Failure of information transmission, the message id is unkown\n");
-                break;
+            // TODO 添加 RA 时候 的处理,不知道怎么验证 原信息是否存在.有时候不需要验证信息存在.
+            //验证原始信息是否存在
+            list_for_each_safe(pos,n,&list_xxx_head.list){  		
+                tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+                bzero(buf_verify,sizeof(buf_verify));
+                snprintf(buf_verify,sizeof(buf_verify),"%d",tmp_xxx_node->data.node.key[buf[0]]);
+                //printf("%s\n",buf_verify);
+                //printf("%s\n",buf+1);
+
+                if(strcmp(buf_verify,buf+1) == 0){//存在 则 做相应的动作
+                    printf(GREEN"going to deal with the msg\n"NONE);
+
+                    if(call_back_fun[buf[0]] == NULL)
+                        printf(RED "Unable to parse information whose msg type is %d\n"NONE,buf[0]);
+                    else
+                        call_back_fun[buf[0]](tmp_xxx_node->data.msg_info.count,buf[sizeof(buf)-1]);//这里需要处理两个问题,一个是回复的状态,一个是第几条信息的回复
+               
+                    //得到状态信息
+                    //这里面应该根据不同的消息类型 调用不同的函数,注册的函数应该还是少了些.
+                    //这里面最好 是 多定义好几种状态,并 发信号给 某个线程来做事情. 因为在信号处理函数里面最好不要做太多事情
+                    //然后做相应的函数
+                    return ;
+                }
             }
-
-            printf("verify %d\n",state);
-            //重新初始化buf
-            buf[0] = 0;
-
-
-            //得到是 哪一次的发送的返回
-            if(read(fifo_fd,buf,sizeof(buf)-1) <=0){
-                printf(RED "%d.R read body error,abandon the packet\n" NONE,state+1);
-                print_error(state + 4);
-            }
-
-
-            // 根据 *buf 进行校验
-
-            //printf("Receive %d\n",*(int *)(buf+1));
-
-            //判断状态,然后进行比较.
-            if(strcmp(buf_verify[state],buf) == 0){
-                printf(GREEN "get right ack %d.R\n" NONE,state+1);
-            }else
-            {
-                printf(RED "get wrong ack %d.R: %s\n" NONE,state+1,buf+1);
-                print_error(state + 8);
-            }
-
-            //得到状态信息
-            printf("ack_state : %d\n",buf[sizeof(buf)-2]);
-
-
-            //这里面应该根据不同的消息类型 调用不同的函数,注册的函数应该还是少了些.
-            //这里面最好 是 多定义好几种状态,并 发信号给 某个线程来做事情. 因为在信号处理函数里面最好不要做太多事情
-
-            //然后做相应的函数
-            call_back_fun[state]();
-
+            //不存在则 打印信息,什么都不做
+            printf(RED"Original msg has been deleted\n"NONE);
             break;
 
         case SIGALRM: //退出信号
             //定时删链表
-            //
-                printf(GREEN "i am going to Traversing chain list\n" NONE);
-
-                list_for_each_safe(pos,n,&list_xxx_head.list){  		
-                    tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
-                    printf(GREEN "del with one subtraction , left %d\n" NONE,tmp_xxx_node->data.msg_info.dead_line-1);
-                    if(--tmp_xxx_node->data.msg_info.dead_line == 0){//对链表中的数据进行判断,如果满足条件就删节点
-                        list_del(pos); // 注意,删除链表,是删除的list_head,还需要删除 外层的数据 ,删除一个节点之后,并没有破坏这个节点和外围数据的位置关系
-                        free(tmp_xxx_node);//释放数据
-                        printf("a node has removed from the doublelist  list_xxx_head2 because of dead_line ...\n");
-                    }
+            printf(GREEN "i am going to Traversing chain list\n" NONE);
+            list_for_each_safe(pos,n,&list_xxx_head.list){  		
+                tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+                printf(YELLOW "del with one subtraction , left dead_line :%d\n" NONE,tmp_xxx_node->data.msg_info.dead_line-1);
+                if(--tmp_xxx_node->data.msg_info.dead_line == 0){//对链表中的数据进行判断,如果满足条件就删节点
+                    list_del(pos); // 注意,删除链表,是删除的list_head,还需要删除 外层的数据 ,删除一个节点之后,并没有破坏这个节点和外围数据的位置关系
+                    free(tmp_xxx_node);//释放数据
+                    printf(YELLOW"remove node from list_xxx_head because of dead_line, count is %d\n"NONE,tmp_xxx_node->data.msg_info.count);
                 }
+            }
 
-                //循环链表,并删除剩余=0 的
-                alarm(1);
+            //循环链表,并删除剩余=0 的
+            alarm(1);
             break;
 
         default:
@@ -249,7 +237,8 @@ int main(int argc, const char *argv[]){
     struct list_head *pos,*n;
     int ret = 0;
     int count = 0;
-    call_back_fun_t call_back_fun[4] = {call_back_1R,call_back_2R,call_back_3R,call_back_4R};
+    int i;
+    call_back_fun_t call_back_fun[5] = {call_back_1R,call_back_2R,call_back_3R,call_back_4R,call_back_AR};
 
     if(argc != 2)
         usage();
@@ -265,7 +254,7 @@ int main(int argc, const char *argv[]){
     if(ret)
         printf(RED "shm_init failed\n" NONE);
 
-    call_back_register(call_back_fun,4);
+    call_back_register(call_back_fun,5);
 
     creat_fifo(argv[1]);
 
@@ -296,6 +285,7 @@ int main(int argc, const char *argv[]){
         tmp_xxx_node->data.node.key[0] = count+30;                                              
         tmp_xxx_node->data.node.key[1] = count+60;                                              
         tmp_xxx_node->data.node.key[2] = count+90;                                              
+        tmp_xxx_node->data.node.key[3] = count+120;                                              
         //tmp_xxx_node->data.msg_info.dead_line = CLIENT_DEADLINE;
         //strcpy((char *)(tmp_xxx_node->data.node.fifo_path),argv[1]);
         //printf(GREEN "node :%s\n" NONE,tmp_xxx_node->data.node.context);                        
@@ -304,17 +294,25 @@ int main(int argc, const char *argv[]){
         bzero((void *)&(tmp_xxx_node->data.msg_info),sizeof(msg_info_t));                       
         strcpy((char *)(tmp_xxx_node->data.msg_info.context),"i am node context");
         tmp_xxx_node->data.msg_info.dead_line = CLIENT_DEADLINE;
+        tmp_xxx_node->data.msg_info.process_type = BLUETOOTH ;
+        tmp_xxx_node->data.msg_info.count = count;
         //tmp_xxx_node->data.msg_info.key_1R = count;                                             
         tmp_xxx_node->data.msg_info.pid = getpid();                                             
         strcpy((char *)(tmp_xxx_node->data.msg_info.fifo_path),argv[1]);                      
         //printf(GREEN "msg_info :%s\n" NONE,tmp_xxx_node->data.msg_info.context);                
 
+
+
         // 4.发送及接收,接收 在回调中 
-        pkt_send(&(tmp_xxx_node->data),sizeof(tmp_xxx_node->data),count);
+        ret = pkt_send(&(tmp_xxx_node->data),sizeof(tmp_xxx_node->data),count);
+        if(ret < 0){
+            printf(RED "send error\n" NONE);
+        }
+
 
         list_add_tail(&(tmp_xxx_node->list),&list_xxx_head.list);
 
-        //sleep(100);
+        //sleep(1);
         while(1);
     }
     return 0;

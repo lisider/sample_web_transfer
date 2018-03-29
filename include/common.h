@@ -16,14 +16,35 @@ typedef enum {
     NUMBER_OF_MEMBERS,
 } shm_state_t;
 
+typedef enum {
+    BLUETOOTH,
+} process_type_t;
+
+
+typedef enum{
+    INIT_STATE,
+    SUCCESS_ACK,
+    SENDFAIL,
+    NORESPONSE, // DEADLINE
+}ack_state_t;
+
+typedef struct {
+//	char fifo_path[32];
+//	pid_t  pid;
+	int key[4]; //这个 key[0] 用于验证 2.R ,key[1] 用于验证 3.R key[2] 用于验证 4.R
+//	char context [32];
+} node_t;
 
 typedef struct {
 
     char fifo_path[32];
+    int count;
 
     //int key_1R; 
 
     pid_t pid;
+
+    process_type_t process_type;
 
     int dead_line;
 
@@ -76,7 +97,6 @@ typedef enum {
     R1,
     R2,
     R3,
-    R4,
     RA,//active
     Unknown_state
 } msg_type_t;

@@ -285,62 +285,54 @@ READ_AGGIN:
 }
 #endif
 
+char * processtype(process_type_t process_type){
 
-extern char buf_verify[4][32];
+    switch(process_type){
+        case BLUETOOTH:
+            return "bluetooth";
+            break;
+        default:
+            break;
+    }
+}
+
 
 int pkt_send(msg_send_t * send_pkt_p,int size,int count){
 
 	int ret = 0;
-        int i;
-	bzero(buf_verify,sizeof(buf_verify));
+        int i = 0;
 
-	//printf("shm state : %s\n", shms->shm_state == 0 ?("WRITEABLE"):(shms->shm_state == 1?("READABLE"):("NUMBER_OF_MEMBERS")));
+        //处理同步问题
 
-loop:
-	if (sem_trywait((sem_t *)&(shms->sem)) == -1){
+        //同步 1 信号量
+        while(sem_trywait((sem_t *)&(shms->sem)) == -1){
+            perror("sem_trywait");
+            if(++i >10)
+                return -1;
+            usleep(1000);
+        }
 
-		perror("sem_trywait");
-
-		goto loop;
-	}
-	printf("------------------------------------------------------------------\n");
-
-	//pthread_rwlock_wrlock(&(shms->lock));
-
-	printf(GREEN "send buff_to_send->form process to ws_client\n" NONE); 
-	memcpy((char *)&(shms->buff_to_send),send_pkt_p,sizeof(msg_send_t));
-
+        //同步 2 读写标识
         while(!is_writeable_send(shms->read_write_state)){
             shms->unwriteable_times_send += 1;
             
-            if(shms->unwriteable_times_send > 5)
+            if(++shms->unwriteable_times_send > 5)
             {
                 shms->unwriteable_times_send = 0;
-                break;
+                sem_post((sem_t *)&(shms->sem));
+                return -2;
             }
-
-            sleep(1);
-
+            usleep(1000);
         }
-	//shms->shm_state = WRITEABLE;                                                            
+
+        //处理数据
+	printf(YELLOW "%s send %d data to ws_client\n" NONE,processtype(send_pkt_p->msg_info.process_type),count); 
+	memcpy((char *)&(shms->buff_to_send),send_pkt_p,sizeof(msg_send_t));
+
+        //处理同步问题
         disable_writeable_send(&(shms->read_write_state));
-	//用于验证1.R 和 验证 2.R 3.R 4.R 的变量放的位置不同,所以
-	//不能在一块做
-
-
-
-        for(i = 0;i < 3;i++){
-
-            bzero(buf_verify[i],sizeof(buf_verify[i]));
-            snprintf(buf_verify[i],sizeof(buf_verify[i]),"%d",shms->buff_to_send.node.key[i]);
-
-        }
-
-
+        shms->unwriteable_times_send = 0;
         sem_post((sem_t *)&(shms->sem));
- //       alarm(5);
-
-        printf(PURPLE "%dth msg to the ws_client\n" NONE,count);
 
         return  0;
 }
