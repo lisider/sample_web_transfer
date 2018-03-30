@@ -37,40 +37,36 @@
  **************************************************************************************/
 
 #define SERVER_DEADLINE 5
-
 #define LWS_DEFINE 0
-
-
-#define AUDIO_PATH "/home/suweishuai/audio_file/test.amr"
-
 
 /**************************************************************************************
  * 结构体/枚举体声明区
  **************************************************************************************/
 
-
 enum demo_protocols
 {
 
-	PROTOCOL_DUMB_INCREMENT,
-	PROTOCOL_LWS_MIRROR,
+    PROTOCOL_DUMB_INCREMENT,
+    PROTOCOL_LWS_MIRROR,
 
-	/* always last */
-	DEMO_PROTOCOL_COUNT
+    /* always last */
+    DEMO_PROTOCOL_COUNT
 };
 
 struct pthread_routine_tool
 {
-	struct lws_context *context;
-	struct lws *wsi;
+    struct lws_context *context;
+    struct lws *wsi;
 };
 
-
+typedef struct  _list_xxx_t{
+    msg_send_t data;
+    struct list_head list;
+}list_xxx_t;
 
 /**************************************************************************************
  * 全局变量定义区
  **************************************************************************************/
-
 
 static int deny_deflate, longlived, mirror_lifetime, test_post;
 static struct lws *wsi_dumb, *wsi_mirror;
@@ -96,7 +92,6 @@ char * cjson_to_send = NULL;
 
 enum lws_write_protocol pkt_send_format;
 
-
 pthread_cond_t  cond_main,cond_write;
 pthread_mutex_t mutex;
 
@@ -110,21 +105,12 @@ pthread_t   pthid_insert;
 struct shm *shms;//结构体指针定义 
 int shmid;//共享内存id定义
 
-//linked_list_t * list_h_pointer = NULL;
-
-typedef struct  _list_xxx_t{
-    msg_send_t data;
-    struct list_head list;
-}list_xxx_t;
-
-
 list_xxx_t list_xxx_head;
 list_xxx_t list_xxx_head2;
 
 /**************************************************************************************
  * 函数定义区
  **************************************************************************************/
-
 
 char * processtype(process_type_t process_type){
 
@@ -137,173 +123,162 @@ char * processtype(process_type_t process_type){
     }
 }
 
+
 int file_size(const char * filename)  
 {  
-	FILE *fp=fopen(filename,"r");  
-	if(!fp) return -1;  
-	fseek(fp,0L,SEEK_END);  
-	int size=ftell(fp);  
-	fclose(fp);  
+    FILE *fp=fopen(filename,"r");  
+    if(!fp) return -1;  
+    fseek(fp,0L,SEEK_END);  
+    int size=ftell(fp);  
+    fclose(fp);  
 
-	return size;  
+    return size;  
 }  
-
 
 static void generate_login_cjson(char **p)
 {
-	cJSON *root,*fmt;
+    cJSON *root,*fmt;
 
-	root = cJSON_CreateObject();
-	cJSON_AddStringToObject(root,"Version","00030000");
-	cJSON_AddNumberToObject(root, "SN", 142);
-	cJSON_AddNumberToObject(root, "CID", 10211);
-	cJSON_AddItemToObject(root, "PL", fmt=cJSON_CreateObject());
-	cJSON_AddStringToObject(fmt,"Name", "865843024562586");
-	cJSON_AddStringToObject(fmt, "Password", "5F64E333CEDB15AD7182D18FC070F8DB");
-	cJSON_AddNumberToObject(fmt, "Type", 200);
-	cJSON_AddStringToObject(fmt, "machSerialNo", "562586");
-	*p = cJSON_Print(root);
-	cJSON_Delete(root);
-	return ;
+    root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root,"Version","00030000");
+    cJSON_AddNumberToObject(root, "SN", 142);
+    cJSON_AddNumberToObject(root, "CID", 10211);
+    cJSON_AddItemToObject(root, "PL", fmt=cJSON_CreateObject());
+    cJSON_AddStringToObject(fmt,"Name", "865843024562586");
+    cJSON_AddStringToObject(fmt, "Password", "5F64E333CEDB15AD7182D18FC070F8DB");
+    cJSON_AddNumberToObject(fmt, "Type", 200);
+    cJSON_AddStringToObject(fmt, "machSerialNo", "562586");
+    *p = cJSON_Print(root);
+    cJSON_Delete(root);
+    return ;
 }
-
-
 
 static void show_http_content(const char *p, size_t l)
 {
-	if (lwsl_visible(LLL_INFO))
-	{
-		while (l--)
-			if (*p < 0x7f)
-				putchar(*p++);
-			else
-				putchar('.');
-	}
+    if (lwsl_visible(LLL_INFO))
+    {
+        while (l--)
+            if (*p < 0x7f)
+                putchar(*p++);
+            else
+                putchar('.');
+    }
 }
 
 //目前测试 写 LWS_WRITE_TEXT 成功 ,不知道 写 LWS_WRITE_BINARY 是否可以成功
 static int websocket_write_back(struct lws *wsi_in, char *str, int str_size_in,enum lws_write_protocol pkt_send_format)
 {
 
-	if (str == NULL || wsi_in == NULL)
-		return -1;
+    if (str == NULL || wsi_in == NULL)
+        return -1;
 
-	int n;
-	int len;
-	unsigned char *out = NULL;
+    int n;
+    int len;
+    unsigned char *out = NULL;
 
-	if (str_size_in < 1)
-		len = strlen(str);
-	else
-		len = str_size_in;
+    if (str_size_in < 1)
+        len = strlen(str);
+    else
+        len = str_size_in;
 
-	out = (unsigned char *)malloc(sizeof(unsigned char)*(LWS_SEND_BUFFER_PRE_PADDING + len + LWS_SEND_BUFFER_POST_PADDING));
-	//* setup the buffer*/
-	memcpy (out + LWS_SEND_BUFFER_PRE_PADDING, str, len );
-	//* write out*/
-	n = lws_write(wsi_in, out + LWS_SEND_BUFFER_PRE_PADDING, len, pkt_send_format);
+    out = (unsigned char *)malloc(sizeof(unsigned char)*(LWS_SEND_BUFFER_PRE_PADDING + len + LWS_SEND_BUFFER_POST_PADDING));
+    //* setup the buffer*/
+    memcpy (out + LWS_SEND_BUFFER_PRE_PADDING, str, len );
+    //* write out*/
+    n = lws_write(wsi_in, out + LWS_SEND_BUFFER_PRE_PADDING, len, pkt_send_format);
 
-	//  printf("[websocket_write_back] %s\n", str);
-	//* free the buffer*/
-	free(out);
+    //  printf("[websocket_write_back] %s\n", str);
+    //* free the buffer*/
+    free(out);
 
-	return n;
+    return n;
 }
 
 void xun_uint_to_char(unsigned int a ,unsigned char *tab,int len)
 {
-	int  i;
-	char*  pa;
-	pa=(char *)&a;  
-	for(i=0; i < len; i++)
-	{
-		tab[len-i-1]=*((char *)pa+i);  
-	}
+    int  i;
+    char*  pa;
+    pa=(char *)&a;  
+    for(i=0; i < len; i++)
+    {
+        tab[len-i-1]=*((char *)pa+i);  
+    }
 }
 
 void sig_handler(int arg){
     int fifo_fd;
-                list_xxx_t *tmp_xxx_node;
-                struct list_head *pos,*n;
+    list_xxx_t *tmp_xxx_node;
+    struct list_head *pos,*n;
     char buf[32];
     ack_state_t ack_state = INIT_STATE;
 
-	switch(arg){
+    switch(arg){
+        case SIGINT:
 
-	case SIGINT:
-
-		printf(RED "Recovering memory...");
-
-		//delete_linklist_all(list_h_pointer);
-
-
-
-                list_for_each_safe(pos,n,&list_xxx_head.list){  		
-                    tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
-                    if(1){//对链表中的数据进行判断,如果满足条件就删节点
-                        list_del(pos); // 注意,删除链表,是删除的list_head,还需要删除 外层的数据 ,删除一个节点之后,并没有破坏这个节点和外围数据的位置关系
-                        free(tmp_xxx_node);//释放数据
-                    }
+            printf(YELLOW "Recovering memory...");
+            list_for_each_safe(pos,n,&list_xxx_head.list){  		
+                tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+                if(1){//对链表中的数据进行判断,如果满足条件就删节点
+                    list_del(pos); // 注意,删除链表,是删除的list_head,还需要删除 外层的数据 ,删除一个节点之后,并没有破坏这个节点和外围数据的位置关系
+                    free(tmp_xxx_node);//释放数据
                 }
+            }
+            printf("\tDONE\n" NONE);
+            //做一些其他的回收的事情
+            force_exit = 1;
 
-
-
-                printf("\tDONE\n" NONE);
-
-                //做一些其他的回收的事情
-                force_exit = 1;
-
-                shmdt(shms);
-                shmctl(shmid, IPC_RMID, NULL);
-                exit(23); //这个23需要定义
-
-                break;
+            shmdt(shms);
+            shmctl(shmid, IPC_RMID, NULL);
+            exit(23); //这个23需要定义
+            break;
         case SIGALRM:
 
-                printf(GREEN "i am going to Traversing chain list\n" NONE);
+            printf(GREEN "i am going to Traversing chain list\n" NONE);
+            list_for_each_safe(pos,n,&list_xxx_head2.list){  		
+                tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
+                printf(GREEN "del sub form process : %s,pid : %d,left %d\n" NONE,\
+                        processtype(tmp_xxx_node->data.msg_info.process_type),\
+                        tmp_xxx_node->data.msg_info.pid,\
+                        tmp_xxx_node->data.msg_info.dead_line-1);
 
-                list_for_each_safe(pos,n,&list_xxx_head2.list){  		
-                    tmp_xxx_node = list_entry(pos,list_xxx_t,list);//得到外层的数据
-                    printf(GREEN "del with one subtraction , left %d\n" NONE,tmp_xxx_node->data.msg_info.dead_line-1);
-                    if(--tmp_xxx_node->data.msg_info.dead_line == 0){//对链表中的数据进行判断,如果满足条件就删节点
-                        list_del(pos); // 注意,删除链表,是删除的list_head,还需要删除 外层的数据 ,删除一个节点之后,并没有破坏这个节点和外围数据的位置关系
+                if(--tmp_xxx_node->data.msg_info.dead_line == 0){//对链表中的数据进行判断,如果满足条件就删节点
+                    list_del(pos); // 注意,删除链表,是删除的list_head,还需要删除 外层的数据 ,删除一个节点之后,并没有破坏这个节点和外围数据的位置关系
 
-                        fifo_fd = open(tmp_xxx_node->data.msg_info.fifo_path,O_RDWR);
-                        if(0 > fifo_fd){
-                            perror("open");
-                        }
-
-                        bzero(buf,sizeof(buf));
-                        buf[0] = RA;
-                        snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[RA]); //KEY_0 是 用于 验证 2.R的
-                        ack_state = NORESPONSE;
-                        buf[sizeof(buf)-1] = ack_state;
-                        printf(YELLOW "send ack  AR  to pid :%d because of dead_line,count :%d",tmp_xxx_node->data.msg_info.pid,tmp_xxx_node->data.msg_info.count);
-
-
-                        // 2. 写
-                        write(fifo_fd,buf,sizeof(buf));
-                        kill(tmp_xxx_node->data.msg_info.pid,SIGUSR1);
-                        printf("   ...send ack AR DONE\n" NONE,buf[0]);
-                        close(fifo_fd);
-
-                        free(tmp_xxx_node);//释放数据
-                        printf(YELLOW"remove node from list_xxx_head2 because of dead_line,from %s,count is %d\n"NONE,\
-                                processtype(tmp_xxx_node->data.msg_info.process_type),\
-                                tmp_xxx_node->data.msg_info.count);
+                    fifo_fd = open(tmp_xxx_node->data.msg_info.fifo_path,O_RDWR);
+                    if(0 > fifo_fd){
+                        perror("open");
                     }
+
+                    bzero(buf,sizeof(buf));
+                    buf[0] = RECV_ACTIVE;
+                    snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.msg_info.count); //KEY_0 是 用于 验证 2.R的
+                    ack_state = NORESPONSE;
+                    buf[sizeof(buf)-1] = ack_state;
+                    printf(YELLOW "send ack  AR  to pid :%d because of dead_line,count :%d",tmp_xxx_node->data.msg_info.pid,tmp_xxx_node->data.msg_info.count);
+
+                    // 2. 写
+                    write(fifo_fd,buf,sizeof(buf));
+                    kill(tmp_xxx_node->data.msg_info.pid,SIGUSR1);
+                    printf("   ...send ack AR DONE\n" NONE,buf[0]);
+                    close(fifo_fd);
+
+                    free(tmp_xxx_node);//释放数据
+                    printf(YELLOW"remove node from list_xxx_head2 because of dead_line,from %s,count is %d\n"NONE,\
+                            processtype(tmp_xxx_node->data.msg_info.process_type),\
+                            tmp_xxx_node->data.msg_info.count);
                 }
+            }
 
-                //循环链表,并删除剩余=0 的
-                alarm(1);
+            //循环链表,并删除剩余=0 的
+            alarm(1);
 
-                break;
+            break;
 
 
         default:
-                ;
-        }
-        return ;
+            ;
+    }
+    return ;
 }
 
 #if 0
@@ -976,7 +951,7 @@ static void * thread_del_list(void *tool_in){
         i = 0;
         list_for_each_entry(tmp_xxx_node,&list_xxx_head2.list,list)
             i++;
-        printf(GREEN "%d nodes in the A chain list has been issued\n" NONE,i);
+        printf(GREEN "%d nodes in the A chain list has been sent\n" NONE,i);
 
         //if(list_h_pointer->next == NULL) //如果为空链表,头结点中没有数据
         //	continue;
@@ -1012,8 +987,8 @@ static void * thread_del_list(void *tool_in){
             }
 
             bzero(buf,sizeof(buf));
-            buf[0] = R2;
-            snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.node.key[R2]); 
+            buf[0] = RECV_SEND;
+            snprintf(buf+1,sizeof(buf)-1,"%d",tmp_xxx_node->data.msg_info.count); 
             ack_state = SUCCESS_ACK;
             buf[sizeof(buf)-1] = ack_state;
             printf(YELLOW"send ack after send to pid :%d,name:%s,count: %d,",\

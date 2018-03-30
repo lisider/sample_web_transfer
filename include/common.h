@@ -36,20 +36,12 @@ typedef struct {
 } node_t;
 
 typedef struct {
-
-    char fifo_path[32];
-    int count;
-
-    //int key_1R; 
-
-    pid_t pid;
-
-    process_type_t process_type;
-
-    int dead_line;
-
     char context[64*1024];
-
+    char fifo_path[32];
+    pid_t pid;
+    process_type_t process_type;
+    int count;
+    int dead_line;
 } msg_info_t;
 
 
@@ -58,7 +50,7 @@ typedef struct {
 //buff_to_send.node
 //这个数据是用来插入节点的
 typedef struct {
-    node_t  node;  //因为是共享内存中的东西,不能用A进程访问 B 进程 malloc 的东西,所以不用指针
+    //node_t  node;  //因为是共享内存中的东西,不能用A进程访问 B 进程 malloc 的东西,所以不用指针
     msg_info_t msg_info;//同上
 } msg_send_t; // 这个类型 至少要包括数据节点的类型
 
@@ -93,6 +85,7 @@ struct shm////共享内存使用的结构体的声明
 
 
 
+#if 0
 typedef enum {
     R1,
     R2,
@@ -101,5 +94,12 @@ typedef enum {
     Unknown_state
 } msg_type_t;
 
+#endif
+typedef enum {
+    RECV_SEND,
+    RECV_ACK,
+    RECV_ACTIVE,//active
+    Unknown_state
+} msg_type_t;
 
 #endif
